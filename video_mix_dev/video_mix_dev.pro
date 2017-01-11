@@ -3,14 +3,17 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
+DEFINES = __STDC_CONSTANT_MACROS
 INCLUDEPATH=/home/huheng/source/ffmpeg
 LIBS=-lavcodec -lavfilter -lavutil -lswresample \
 -lavformat -lswscale  -lavdevice -lpostproc -lpthread
 
 SOURCES += main.cpp \
     demo.cpp \
-    decode.cpp
+    decode.cpp \
+    filter.cpp
 
 HEADERS += \
     demo.h \
-    safequeue.h
+    safequeue.h \
+    filter.h

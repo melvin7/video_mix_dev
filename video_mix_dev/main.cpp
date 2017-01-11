@@ -7,6 +7,7 @@
 
 #include "demo.h"
 #include "safequeue.h"
+#include "filter.h"
 #include <string.h>
 
 #define STREAM_DURATION   10000.0
@@ -24,7 +25,6 @@ void concatyuv420P_test(AVFrame* dstFrame, AVFrame* overlayFrame)
         printf("assert failed!\n");
         return;
     }
-    int width = dstFrame->width;
     int height = dstFrame->height;
     memset(dstFrame->data[0], 0x80, height * dstFrame->linesize[0]);
     memset(dstFrame->data[1], 0x80, height/2 * dstFrame->linesize[1]);
@@ -104,6 +104,10 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
 
     frame = get_one_video_frame(ost);
     //frame = get_video_frame(ost);
+    //send to filter
+
+
+
     av_init_packet(&pkt);
 
     /* encode the image */
@@ -126,6 +130,9 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
 
     return (frame || got_packet) ? 0 : 1;
 }
+const int output_width = 640;
+const int output_height = 320;
+const int output_format = 0;
 
 int main(int argc, char *argv[])
 {
@@ -142,6 +149,16 @@ int main(int argc, char *argv[])
     if(open_input_file(&is) != 0){
         is.valid = false;
     }
+    char args[512];
+    AVRational output_timebase = (AVRational){1, STREAM_FRAME_RATE};
+    /* buffer video source: the decoded frames from the decoder will be inserted here. */
+    snprintf(args, sizeof(args),
+            "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
+            output_width, output_height, output_format,
+            output_timebase.num, output_timebase.den,
+            output_width, output_height);
+    //init filter
+    if(init_filter(of.video_st.box, args, "drawtext=text='MUDUTV':fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2") < 0)
 
 
     std::thread t([&](){

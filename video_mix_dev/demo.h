@@ -10,6 +10,7 @@ extern "C"{
 #include "libavutil/time.h"
 }
 #include<string>
+#include "filter.h"
 
 /*wrap AVPacket*/
 struct Packet
@@ -53,6 +54,7 @@ typedef struct OutputStream {
 
     struct SwsContext *sws_ctx;
     struct SwrContext *swr_ctx;
+    FilterBox* box;
 } OutputStream;
 
 typedef struct OutputFile
@@ -96,6 +98,9 @@ typedef struct Decoder {
         av_init_packet(&pkt_temp);
     }
 }Decoder;
+
+
+
 
 
 int write_audio_frame(AVFormatContext *oc, OutputStream *ost);
