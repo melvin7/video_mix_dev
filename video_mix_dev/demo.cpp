@@ -1,5 +1,65 @@
 #include "demo.h"
+extern "C"{
+#include <libavutil/avassert.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/opt.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/timestamp.h>
+}
 
+/* avoid a temporary address return build error in c++ */
+
+#undef av_err2str
+#define av_err2str(errnum) \
+    av_make_error_string((char*)__builtin_alloca(AV_ERROR_MAX_STRING_SIZE), AV_ERROR_MAX_STRING_SIZE, errnum)
+
+#undef av_ts2str
+#define av_ts2str(ts) \
+    av_ts_make_string((char*)__builtin_alloca(AV_TS_MAX_STRING_SIZE), ts)
+
+#undef av_ts2timestr
+#define av_ts2timestr(ts, tb) \
+    av_ts_make_time_string((char*)__builtin_alloca(AV_TS_MAX_STRING_SIZE), ts, tb)
+
+
+#define STREAM_DURATION   10000.0
+#define STREAM_FRAME_RATE 25 /* 25 images/s */
+#define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
+
+#define SCALE_FLAGS SWS_BICUBIC
+static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
+{
+    AVRational *time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
+
+    printf("pts:%s pts_time:%s dts:%s dts_time:%s duration:%s duration_time:%s stream_index:%d\n",
+           av_ts2str(pkt->pts), av_ts2timestr(pkt->pts, time_base),
+           av_ts2str(pkt->dts), av_ts2timestr(pkt->dts, time_base),
+           av_ts2str(pkt->duration), av_ts2timestr(pkt->duration, time_base),
+           pkt->stream_index);
+}
+
+
+int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, OutputStream *os, AVPacket *pkt)
+{
+    /* rescale output packet timestamp values from codec to stream timebase */
+    av_packet_rescale_ts(pkt, *time_base, os->st->time_base);
+    //static int64_t begin_time = pkt->pts * (st->time_base.num * 1000) / st->time_base.den;
+    static int i = 0;
+
+
+//    int64_t timepass = av_gettime_relative() - start_time;
+//    //int64_t pkt_time = os->next_pts * ((*time_base).num * 1000) / (*time_base).den;
+//    int64_t pts = av_rescale(pkt->dts, 1000000 * (os->st->time_base.num), os->st->time_base.den);
+//    while(pts>timepass){
+//        av_usleep(20000);
+//        timepass += 20;
+//    }
+//    last_packet_duration += pkt->duration;
+    pkt->stream_index = os->st->index;
+    /* Write the compressed frame to the media file. */
+    log_packet(fmt_ctx, pkt);
+    return av_interleaved_write_frame(fmt_ctx, pkt);
+}
 /* Add an output stream. */
 static void add_stream(OutputStream *ost, AVFormatContext *oc,
                        AVCodec **codec,
@@ -328,19 +388,20 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
         fprintf(stderr, "Could not allocate video frame\n");
         exit(1);
     }
-
+    ost->tmp_frame = alloc_picture(c->pix_fmt, c->width/2, c->height/2);
     /* If the output format is not YUV420P, then a temporary YUV420P
      * picture is needed too. It is then converted to the required
      * output format. */
-    ost->tmp_frame = NULL;
-    if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-        ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
-        if (!ost->tmp_frame) {
-            fprintf(stderr, "Could not allocate temporary picture\n");
-            exit(1);
-        }
-    }
+//    ost->tmp_frame = NULL;
+//    if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
+//        ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
+//        if (!ost->tmp_frame) {
+//            fprintf(stderr, "Could not allocate temporary picture\n");
+//            exit(1);
+//        }
+//    }
     ost->filter_frame = av_frame_alloc();
+
     /* copy the stream parameters to the muxer */
     ret = avcodec_parameters_from_context(ost->st->codecpar, c);
     if (ret < 0) {
@@ -349,12 +410,136 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
     }
 }
 
+/* Prepare a dummy image. */
+void fill_yuv_image(AVFrame *pict, int frame_index,
+                           int width, int height)
+{
+    int x, y, i;
+
+    i = frame_index;
+
+//    /* Y */
+//    for (y = 0; y < height; y++)
+//        for (x = 0; x < width; x++)
+//            pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
+
+//    /* Cb and Cr */
+//    for (y = 0; y < height / 2; y++) {
+//        for (x = 0; x < width / 2; x++) {
+//            pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
+//            pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
+//        }
+//    }
+    /* Y */
+    memset(pict->data[0], 0x80, height * pict->linesize[0]);
+    memset(pict->data[1], 0x80, height/2 * pict->linesize[1]);
+    memset(pict->data[2], 0x80, height/2 * pict->linesize[2]);
+//    for (y = 0; y < height; y++)
+//        for (x = 0; x < width; x++)
+//            pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
+
+//    /* Cb and Cr */
+//    for (y = 0; y < height / 2; y++) {
+//        for (x = 0; x < width / 2; x++) {
+//            pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
+//            pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
+//        }
+//    }
+}
+
+static AVFrame *get_video_frame(OutputStream *ost)
+{
+    AVCodecContext *c = ost->enc;
+
+    /* check if we want to generate more frames */
+    if (av_compare_ts(ost->next_pts, c->time_base,
+                      STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
+        return NULL;
+
+    /* when we pass a frame to the encoder, it may keep a reference to it
+     * internally; make sure we do not overwrite it here */
+    if (av_frame_make_writable(ost->frame) < 0)
+        exit(1);
+
+    if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
+        /* as we only generate a YUV420P picture, we must convert it
+         * to the codec pixel format if needed */
+        if (!ost->sws_ctx) {
+            ost->sws_ctx = sws_getContext(c->width, c->height,
+                                          AV_PIX_FMT_YUV420P,
+                                          c->width, c->height,
+                                          c->pix_fmt,
+                                          SCALE_FLAGS, NULL, NULL, NULL);
+            if (!ost->sws_ctx) {
+                fprintf(stderr,
+                        "Could not initialize the conversion context\n");
+                exit(1);
+            }
+        }
+        fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height);
+        sws_scale(ost->sws_ctx,
+                  (const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
+                  0, c->height, ost->frame->data, ost->frame->linesize);
+    } else {
+        fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height);
+    }
+
+    ost->frame->pts = ost->next_pts++;
+
+    return ost->frame;
+}
+
+
+
+int write_video_frame(AVFormatContext *oc, OutputStream *ost)
+{
+    int ret;
+    AVCodecContext *c;
+    AVFrame *frame;
+    int got_packet = 0;
+    AVPacket pkt = { 0 };
+
+    c = ost->enc;
+
+    frame = get_video_frame(ost);
+    //frame = get_video_frame(ost);
+    av_init_packet(&pkt);
+
+    /* encode the image */
+    ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+    if (ret < 0) {
+        fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+        exit(1);
+    }
+
+    if (got_packet) {
+        ret = write_frame(oc, &c->time_base, ost, &pkt);
+    } else {
+        ret = 0;
+    }
+
+    if (ret < 0) {
+        fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
+        exit(1);
+    }
+
+    return (frame || got_packet) ? 0 : 1;
+}
+
+void close_stream(AVFormatContext *oc, OutputStream *ost)
+{
+    avcodec_free_context(&ost->enc);
+    av_frame_free(&ost->frame);
+    av_frame_free(&ost->tmp_frame);
+    sws_freeContext(ost->sws_ctx);
+    swr_free(&ost->swr_ctx);
+}
 
 int open_input_file(InputFile* is)
 {
     int ret;
     AVCodec *dec;
-
+    is->fmt_ctx = NULL;
     if ((ret = avformat_open_input(&is->fmt_ctx, is->filename.c_str(), NULL, NULL)) < 0) {
         av_log(NULL, AV_LOG_ERROR, "Cannot open input file\n");
         return ret;
@@ -372,7 +557,7 @@ int open_input_file(InputFile* is)
         return ret;
     }
     is->video_stream_index = ret;
-    is->video_dec_ctx = is->fmt_ctx->streams[video_stream_index]->codec;
+    is->video_dec_ctx = is->fmt_ctx->streams[is->video_stream_index]->codec;
     av_opt_set_int(is->video_dec_ctx, "refcounted_frames", 1, 0);
 
     /* init the video decoder */
@@ -380,7 +565,7 @@ int open_input_file(InputFile* is)
         av_log(NULL, AV_LOG_ERROR, "Cannot open video decoder\n");
         return ret;
     }
-
+    is->valid = true;
     return 0;
 }
 
@@ -417,27 +602,22 @@ int open_output_file(OutputFile* of)
     /* Now that all the parameters are set, we can open the audio and
      * video codecs and allocate the necessary encode buffers. */
     if (have_video)
-        open_video(oc, video_codec, &video_st, NULL);
+        open_video(oc, video_codec, &of->video_st, NULL);
 
     if (have_audio)
-        open_audio(oc, audio_codec, &audio_st, NULL);
+        open_audio(oc, audio_codec, &of->audio_st, NULL);
 
-    av_dump_format(oc, 0, filename, 1);
-
+    av_dump_format(oc, 0, of->filename, 1);
+    int ret;
     /* open the output file, if needed */
     if (!(fmt->flags & AVFMT_NOFILE)) {
-        ret = avio_open(&oc->pb, os->filename, AVIO_FLAG_WRITE);
+        ret = avio_open(&oc->pb, of->filename, AVIO_FLAG_WRITE);
         if (ret < 0) {
-            fprintf(stderr, "Could not open '%s': %s\n", filename,
+            fprintf(stderr, "Could not open '%s': %s\n", of->filename,
                     av_err2str(ret));
             return 1;
         }
     }
     return 0;
 }
-
-
-
-
-
 

@@ -8,7 +8,8 @@ LIBS=-lavcodec -lavfilter -lavutil -lswresample \
 -lavformat -lswscale  -lavdevice -lpostproc -lpthread
 
 SOURCES += main.cpp \
-    demo.cpp
+    demo.cpp \
+    decode.cpp
 
 HEADERS += \
     demo.h \
