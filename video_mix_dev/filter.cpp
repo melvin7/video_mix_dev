@@ -2,7 +2,7 @@
 #include "demo.h"
 #include <string.h>
 
-static int init_filters(FilterBox* box, char* args, const char *filters_descr)
+int init_filters(FilterBox* box, char* args, const char *filters_descr)
 {
     //char args[512];
     int ret = 0;
@@ -27,7 +27,7 @@ static int init_filters(FilterBox* box, char* args, const char *filters_descr)
 //            time_base.num, time_base.den,
 //            dec_ctx->sample_aspect_ratio.num, dec_ctx->sample_aspect_ratio.den);
 
-    ret = avfilter_graph_create_filter(&box->buffersrc_ctx, buffersrc, "in",
+    ret = avfilter_graph_create_filter(&(box->buffersrc_ctx), buffersrc, "in",
                                        args, NULL, box->filter_graph);
     if (ret < 0) {
         av_log(NULL, AV_LOG_ERROR, "Cannot create buffer source\n");
@@ -82,7 +82,7 @@ static int init_filters(FilterBox* box, char* args, const char *filters_descr)
 
     if ((ret = avfilter_graph_config(box->filter_graph, NULL)) < 0)
         goto end;
-
+    box->valid = true;
 end:
     avfilter_inout_free(&inputs);
     avfilter_inout_free(&outputs);

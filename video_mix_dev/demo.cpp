@@ -232,8 +232,6 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
         }
 
         /* set options */
-        AVFrame *frame = av_frame_alloc();
-
         av_opt_set_int       (ost->swr_ctx, "in_channel_count",   c->channels,       0);
         av_opt_set_int       (ost->swr_ctx, "in_sample_rate",     c->sample_rate,    0);
         av_opt_set_sample_fmt(ost->swr_ctx, "in_sample_fmt",      AV_SAMPLE_FMT_S16, 0);
@@ -401,7 +399,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 //        }
 //    }
     ost->filter_frame = av_frame_alloc();
-
+    ost->output_frame = av_frame_alloc();
     /* copy the stream parameters to the muxer */
     ret = avcodec_parameters_from_context(ost->st->codecpar, c);
     if (ret < 0) {

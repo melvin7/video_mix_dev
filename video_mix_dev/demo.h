@@ -50,11 +50,12 @@ typedef struct OutputStream {
     AVFrame *frame;
     AVFrame *tmp_frame;
     AVFrame *filter_frame;
+    AVFrame *output_frame;
     float t, tincr, tincr2;
 
     struct SwsContext *sws_ctx;
     struct SwrContext *swr_ctx;
-    FilterBox* box;
+    FilterBox box;
 } OutputStream;
 
 typedef struct OutputFile

@@ -16,6 +16,11 @@
 
 #define SCALE_FLAGS SWS_BICUBIC
 
+const int output_width = 640;
+const int output_height = 320;
+const int output_format = 0;
+AVRational output_timebase = (AVRational){1, STREAM_FRAME_RATE};
+
 SafeQueue<std::shared_ptr<Frame>, 30> videoFrameQ;
 
 void concatyuv420P_test(AVFrame* dstFrame, AVFrame* overlayFrame)
@@ -43,8 +48,7 @@ static AVFrame *get_one_video_frame(OutputStream *ost)
 {
     AVCodecContext *c = ost->enc;
     int got_frame = 0;
-    AVFrame* dummy_frame;
-    AVFrame* output_frame;
+    int ret;
     /* check if we want to generate more frames */
     if (av_compare_ts(ost->next_pts, c->time_base,
                       STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
@@ -88,8 +92,52 @@ static AVFrame *get_one_video_frame(OutputStream *ost)
         fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height);
     }
     ost->frame->pts = ost->next_pts++;
+    //add filter
+    //ost->frame->pts = av_frame_get_best_effort_timestamp(ost->frame);
 
-    return ost->frame;
+    /* push the decoded frame into the filtergraph */
+    //reconfig filter box
+    if(ost->next_pts == 50){
+        char args[512];
+
+        /* buffer video source: the decoded frames from the decoder will be inserted here. */
+        snprintf(args, sizeof(args),
+                "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
+                output_width, output_height, output_format,
+                output_timebase.num, output_timebase.den,
+                output_width, output_height);
+        //init filter test one filter box
+        //char* graph_desc = "drawtext=text='MUDUTV':fontsize=30:x=w-(w-text_w)/3:y=h-(h-text_h)/3";
+        //char* graph_desc = "movie=logo.png,scale=120*90[pic];[in][pic]overlay=0:main_h-overlay_h";
+        char* graph_desc = "movie=logo.png,scale=120*90,setsar=1/1[pic];[in]split[main][t];"
+                           "[t]crop=120:90:0:in_h-90,setsar=1/1[bottom];"
+                           "[pic][bottom]blend=all_expr='A*(if(gte(T,10),1,T/10))+B*(1-(if(gte(T,10),1,T/10)))'[blended];"
+                           "[main][blended]overlay=x='if(gte(t,2), -w+(t-2)*80, NAN)':y=main_h-overlay_h";
+        int64_t ss = av_gettime_relative();
+        init_filters(&ost->box, args, graph_desc);
+        int64_t end = av_gettime_relative();
+        printf("huheng filter config time: %lld\n", end-ss);
+    }
+    if (ost->box.valid && av_buffersrc_add_frame_flags(ost->box.buffersrc_ctx, ost->frame, AV_BUFFERSRC_FLAG_KEEP_REF) < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Error while feeding the filtergraph\n");
+        return ost->frame;
+    }
+    /* pull filtered frames from the filtergraph */
+    while (1) {
+        ret = av_buffersink_get_frame(ost->box.buffersink_ctx, ost->output_frame);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF){
+            printf("huheng %s!\n",ret == AVERROR(EAGAIN) ? "eagain":"error");
+            return ost->frame;
+        }
+        if (ret < 0){
+            printf("huheng %d\n",ret);
+            return ost->frame;
+        }
+        break;
+    }
+
+    ost->output_frame->pts = ost->next_pts-1;
+    return ost->output_frame;
 }
 
 int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
@@ -130,9 +178,6 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
 
     return (frame || got_packet) ? 0 : 1;
 }
-const int output_width = 640;
-const int output_height = 320;
-const int output_format = 0;
 
 int main(int argc, char *argv[])
 {
@@ -143,23 +188,24 @@ int main(int argc, char *argv[])
     InputFile is;
     is.filename = std::string(argv[1]);
     av_register_all();
+    avfilter_register_all();
     avformat_network_init();
     if(open_output_file(&of) != 0)
         return -1;
     if(open_input_file(&is) != 0){
         is.valid = false;
     }
+    char * aa = (char*)malloc(100);
     char args[512];
-    AVRational output_timebase = (AVRational){1, STREAM_FRAME_RATE};
+
     /* buffer video source: the decoded frames from the decoder will be inserted here. */
     snprintf(args, sizeof(args),
             "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
             output_width, output_height, output_format,
             output_timebase.num, output_timebase.den,
             output_width, output_height);
-    //init filter
-    if(init_filter(of.video_st.box, args, "drawtext=text='MUDUTV':fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2") < 0)
-
+    //init filter test one filter box
+    init_filters(&of.video_st.box, args, "drawtext=text='MUDUTV':fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2");
 
     std::thread t([&](){
         while(1){
@@ -172,7 +218,9 @@ int main(int argc, char *argv[])
             Decoder d(is.fmt_ctx,is.video_dec_ctx,is.video_stream_index);
             while(is.valid){
                 //Decoder d(is.fmt_ctx, is.video_dec_ctx, is.video_stream_index);
-                AVFrame* frame = av_frame_alloc();
+                //AVFrame* frame = av_frame_alloc();
+                auto sharedFrame = std::make_shared<Frame>();
+                AVFrame* frame = sharedFrame->frame;
                 int got_frame = decoder_decode_frame(&d, frame);
                 if(got_frame < 0){
                     is.valid = false;
