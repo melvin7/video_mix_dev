@@ -51,6 +51,7 @@ typedef struct OutputStream {
     AVFrame *tmp_frame;
     AVFrame *filter_frame;
     AVFrame *output_frame;
+    AVFrame *text_frame;
     float t, tincr, tincr2;
 
     struct SwsContext *sws_ctx;

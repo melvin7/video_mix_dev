@@ -401,6 +401,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 //    }
     ost->filter_frame = av_frame_alloc();
     ost->output_frame = av_frame_alloc();
+    ost->text_frame = av_frame_alloc();
     /* copy the stream parameters to the muxer */
     ret = avcodec_parameters_from_context(ost->st->codecpar, c);
     if (ret < 0) {

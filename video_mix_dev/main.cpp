@@ -100,18 +100,28 @@ static AVFrame *get_one_video_frame(OutputStream *ost)
     OverlayBox::OverlayConfig conf={(1.0)*(ost->next_pts % 100)/100,320,240,(1280+320)*(ost->next_pts % 250)/250,0};
     //
     int ss = av_gettime_relative();
-    test_box.config(conf, OverlayBox::PICTURE_OVERLAY, (void*)"1.jpg");
+    test_box.config(conf, OverlayBox::PICTURE_OVERLAY, (void*)"1.png");
     if(test_box.valid){
         test_box.push_main_frame(ost->frame);
         test_box.pop_frame(ost->output_frame);
         ost->output_frame->pts = ost->next_pts -1;
-        int end = av_gettime_relative();
-        printf("huheng config time: %lld\n", end-ss);
-        return ost->output_frame;
     }else{
         return ost->frame;
     }
-
+    //reap text
+    OverlayBox text_box;
+    OverlayBox::OverlayConfig text_conf = {1.0, 0,0,(1280+320)*(ost->next_pts % 250)/250,500};
+    text_box.config(text_conf, OverlayBox::TEXT_OVERLAY, (void*)"MUDU TV");
+    if(text_box.valid){
+        text_box.push_main_frame(ost->output_frame);
+        text_box.pop_frame(ost->text_frame);
+        ost->text_frame->pts = ost->next_pts -1;
+        int end = av_gettime_relative();
+        printf("huheng time: %lld\n", end-ss);
+        return ost->text_frame;
+    }else{
+        return ost->output_frame;
+    }
     ost->output_frame->pts = ost->next_pts-1;
     return ost->output_frame;
 }

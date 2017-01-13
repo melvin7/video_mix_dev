@@ -96,7 +96,12 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
                  );
         printf("pic desc: %s\n",desc);
     } else if(t == TEXT_OVERLAY){
-
+        char* text = (char*)opaque;
+        snprintf(desc, sizeof(desc),
+                 "drawtext=text=\'%s\':fontsize=40:x=%d:y=%d",
+                 text, c.offset_x, c.offset_y
+                 );
+        printf("text desc: %s\n", desc);
     } else if(t == STREAM_OVERLAY){
         AVCodecContext* ctx = (AVCodecContext*)opaque;
         char args[128];
