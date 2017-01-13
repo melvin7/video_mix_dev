@@ -120,8 +120,8 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 
         c->bit_rate = 400000;
         /* Resolution must be a multiple of two. */
-        c->width    = 640;
-        c->height   = 320;
+        c->width    = 1280;
+        c->height   = 720;
         /* timebase: This is the fundamental unit of time (in seconds) in terms
          * of which frame timestamps are represented. For fixed-fps content,
          * timebase should be 1/framerate and timestamp increments should be
@@ -387,6 +387,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
         exit(1);
     }
     ost->tmp_frame = alloc_picture(c->pix_fmt, c->width/2, c->height/2);
+    //ost->tmp_frame = av_frame_alloc();
     /* If the output format is not YUV420P, then a temporary YUV420P
      * picture is needed too. It is then converted to the required
      * output format. */

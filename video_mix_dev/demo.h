@@ -55,7 +55,7 @@ typedef struct OutputStream {
 
     struct SwsContext *sws_ctx;
     struct SwrContext *swr_ctx;
-    FilterBox box;
+    //FilterBox box;
 } OutputStream;
 
 typedef struct OutputFile
