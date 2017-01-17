@@ -1,5 +1,5 @@
 #include "filter.h"
-#include "demo.h"
+#include "demux_decode.h"
 #include <string.h>
 
 void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
@@ -116,7 +116,7 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
             goto end;
         }
         snprintf(desc, sizeof(desc),
-                 "[overlayed]scale=%dx%d,setsar=1/1[top]",
+                 "[overlayed]scale=%dx%d,setsar=1/1[top]"
                  "[in]split[main][tmp];"
                  "[tmp]crop=w=%d:h=%d:x=%d:y=%d,setsar=1/1[bottom];"
                  "[top][bottom]blend=all_opacity=%f[picture];"

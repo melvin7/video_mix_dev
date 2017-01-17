@@ -1,4 +1,4 @@
-#include "demo.h"
+#include "demux_decode.h"
 extern "C"{
 #include <libavutil/avassert.h>
 #include <libavutil/channel_layout.h>
@@ -6,20 +6,6 @@ extern "C"{
 #include <libavutil/mathematics.h>
 #include <libavutil/timestamp.h>
 }
-
-/* avoid a temporary address return build error in c++ */
-
-#undef av_err2str
-#define av_err2str(errnum) \
-    av_make_error_string((char*)__builtin_alloca(AV_ERROR_MAX_STRING_SIZE), AV_ERROR_MAX_STRING_SIZE, errnum)
-
-#undef av_ts2str
-#define av_ts2str(ts) \
-    av_ts_make_string((char*)__builtin_alloca(AV_TS_MAX_STRING_SIZE), ts)
-
-#undef av_ts2timestr
-#define av_ts2timestr(ts, tb) \
-    av_ts_make_time_string((char*)__builtin_alloca(AV_TS_MAX_STRING_SIZE), ts, tb)
 
 
 #define STREAM_DURATION   10000.0
@@ -341,7 +327,7 @@ int write_audio_frame(AVFormatContext *oc, OutputStream *ost)
 /**************************************************************/
 /* video output */
 
-static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
+AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 {
     AVFrame *picture;
     int ret;
@@ -431,7 +417,7 @@ void fill_yuv_image(AVFrame *pict, int frame_index,
 //        }
 //    }
     /* Y */
-    memset(pict->data[0], 0x80, height * pict->linesize[0]);
+    memset(pict->data[0], 0x0, height * pict->linesize[0]);
     memset(pict->data[1], 0x80, height/2 * pict->linesize[1]);
     memset(pict->data[2], 0x80, height/2 * pict->linesize[2]);
 //    for (y = 0; y < height; y++)
@@ -535,42 +521,11 @@ void close_stream(AVFormatContext *oc, OutputStream *ost)
     swr_free(&ost->swr_ctx);
 }
 
-int open_input_file(InputFile* is)
-{
-    int ret;
-    AVCodec *dec;
-    is->fmt_ctx = NULL;
-    if ((ret = avformat_open_input(&is->fmt_ctx, is->filename.c_str(), NULL, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot open input file\n");
-        return ret;
-    }
-
-    if ((ret = avformat_find_stream_info(is->fmt_ctx, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot find stream information\n");
-        return ret;
-    }
-
-    /* select the video stream */
-    ret = av_find_best_stream(is->fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &dec, 0);
-    if (ret < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot find a video stream in the input file\n");
-        return ret;
-    }
-    is->video_stream_index = ret;
-    is->video_dec_ctx = is->fmt_ctx->streams[is->video_stream_index]->codec;
-    av_opt_set_int(is->video_dec_ctx, "refcounted_frames", 1, 0);
-
-    /* init the video decoder */
-    if ((ret = avcodec_open2(is->video_dec_ctx, dec, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot open video decoder\n");
-        return ret;
-    }
-    is->valid = true;
-    return 0;
-}
-
 int open_output_file(OutputFile* of)
 {
+    if(of == NULL){
+        return -1;
+    }
     /* allocate the output media context */
     avformat_alloc_output_context2(&of->fmt_ctx, NULL, NULL, of->filename);
     if (!of->fmt_ctx) {

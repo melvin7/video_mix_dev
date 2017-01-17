@@ -5,7 +5,8 @@
 
 #include <stdio.h>
 
-#include "demo.h"
+#include "demux_decode.h"
+#include "encode_mux.h"
 #include "safequeue.h"
 #include "filter.h"
 #include <string.h>
@@ -139,9 +140,6 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
     frame = get_one_video_frame(ost);
     //frame = get_video_frame(ost);
     //send to filter
-
-
-
     av_init_packet(&pkt);
 
     /* encode the image */
@@ -181,17 +179,6 @@ int main(int argc, char *argv[])
     if(open_input_file(&is) != 0){
         is.valid = false;
     }
-    //char * aa = (char*)malloc(100);
-    //char args[512];
-
-    /* buffer video source: the decoded frames from the decoder will be inserted here. */
-//    snprintf(args, sizeof(args),
-//            "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
-//            output_width, output_height, output_format,
-//            output_timebase.num, output_timebase.den,
-//            output_width, output_height);
-    //init filter test one filter box
-    //init_filters(&of.video_st.box, args, "drawtext=text='MUDUTV':fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2");
 
     std::thread t([&](){
         while(1){
@@ -263,3 +250,34 @@ int main(int argc, char *argv[])
     /* free the stream */
     avformat_free_context(oc);
 }
+
+static bool streaming = true;
+void output_thread(Scene& s)
+{
+    while(1){
+        if(!streaming){
+            av_usleep(1000000);
+            return;
+        }
+
+    }
+
+}
+
+int demo_test()
+{
+    av_register_all();
+    avfilter_register_all();
+    avformat_network_init();
+    //1 create scene
+    Scene s;
+    //2.start streaming thread
+    std::thread outputThread(output_thread, s);
+    //start a thread of member func
+    //std::thread SceneThread(constructScene, s);
+    //3.manage command
+    s.addInput();
+    s.addInput();
+    //4.
+}
+

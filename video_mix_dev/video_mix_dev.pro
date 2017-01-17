@@ -9,11 +9,15 @@ LIBS=-lavcodec -lavfilter -lavutil -lswresample \
 -lavformat -lswscale  -lavdevice -lpostproc -lpthread
 
 SOURCES += main.cpp \
-    demo.cpp \
-    decode.cpp \
-    filter.cpp
+    filter.cpp \
+    demux_decode.cpp \
+    encode_mux.cpp \
+    scene.cpp
 
 HEADERS += \
-    demo.h \
     safequeue.h \
-    filter.h
+    filter.h \
+    demux_decode.h \
+    encode_mux.h \
+    util.h \
+    scene.h

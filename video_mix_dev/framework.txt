@@ -1,0 +1,18 @@
+### construct interfaces for demux decode encode and mux
+
+#### data struct
+
+1. util: AVFrame AVPacket safequeue
+2. demux and decode 
+    input: filename
+    process: demux, read a packet, decode it 
+    output: a safequeue
+3. filter and overlay
+    input: safequeues of inputfiles
+    process: reap frames according to frame' pts
+             send to filter graph
+    output: maybe output to safequeue
+4. encode and mux
+    input: safequeues of output frames
+    process: encode
+    output: write packets
