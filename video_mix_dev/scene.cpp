@@ -3,9 +3,8 @@
 #include "demux_decode.h"
 #include "encode_mux.h"
 
-Scene::Scene():input(MaxInput, NULL),inputConfig(MaxInput,{1,Width,Height,0,0}),
-    inputNum(0),
-    reconfigReq(false)
+Scene::Scene():input(MaxInput, NULL),reconfigReq(false),
+outputFrameRate((AVRational){1,25})
 {
     canvas = alloc_picture(AV_PIX_FMT_YUV420P, 1280, 720);
     fill_yuv_image(canvas, 0, 1280, 720);
@@ -84,7 +83,12 @@ void Scene::reconfig()
 
 void Scene::overlayPicture(InputFile* is, AVFrame* main, AVFrame* outputFrame)
 {
-    is->getPicture(time);
+    AVFrame* top = NULL;
+    int64_t
+    if(is == NULL){
+        
+    }
+    is->getPicture(&top, time);
 }
 
 void Scene::mixVideoStream()
@@ -96,7 +100,9 @@ void Scene::mixVideoStream()
         //get a frame from queue
         //push and pop
         int index = layout.sequence[i];
-        overlayPicture(Input[index], AVFrame* main, AVFrame* outputFrame);
+        if(!input[index] || input[index]->getPicture())
+            continue;
+        overlayPicture(input[index], AVFrame* main, AVFrame* outputFrame);
         av_frame_unref(main);
         av_frame_move_ref(main, outputFrame);
     }
@@ -110,7 +116,6 @@ void Scene::constructing()
             //setFilterBox();
             reconfigReq = false;
         }
-        reapAVFrame();
-
+        mixVideoStream();
     }
 }

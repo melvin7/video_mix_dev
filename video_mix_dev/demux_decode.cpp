@@ -1,4 +1,8 @@
+#include "util.h"
 #include "demux_decode.h"
+extern "C" {
+#include "libavutil/mathematics.h"
+}
 
 int decoder_read_packet(Decoder *d, AVPacket* pkt){
     if(d->flushed){
@@ -69,7 +73,7 @@ int open_input_file(InputFile* is)
 {
     int ret;
     AVCodec *dec;
-    if(is = NULL)
+    if(is == NULL)
         return -1;
     avformat_close_input(&is->fmt_ctx);
     is->fmt_ctx = NULL;
@@ -129,6 +133,7 @@ void decode_thread(InputFile& is){
                 if(is.start_pts == -1){
                     is.start_time = av_gettime_relative();
                     is.start_pts = frame->pts;
+                    is.frame_num = 0;
                 }
                 av_frame_move_ref(qFrame->frame, frame);
                 is.videoFrameQ.push(qFrame);
@@ -137,19 +142,25 @@ void decode_thread(InputFile& is){
      }
 }
 
-bool InputFile::getPicture(AVFrame** pic, int64_t time)
+bool InputFile::getPicture(std::shared_ptr<Frame>& pic, AVRational frameRate)
 {
     if(videoFrameQ.size() <= 0){
         return false;
     }
+    int64_t pts = start_pts + av_rescale_q(1, frameRate,fmt_ctx->streams[video_stream_index]->time_base);
     //keep the last frame
-    if(videoFrameQ.size() == 1){
-        *pic = av_frame_clone(videoFrameQ.front()->frame);
-    } else {
+    while(1){
+        if(videoFrameQ.size() == 1){
+            pic = videoFrameQ.front();
+            break;
+        } 
         std::shared_ptr<Frame> sharedFrame;
-        videoFrameQ.pop(sharedFrame);
-        *pic = av_frame_alloc();
-        av_frame_move_ref(*pic, sharedFrame->frame);
+        if(videoFrameQ.front()->frame->pts > pts){
+            pic = videoFrameQ.front(); 
+            break;
+        }else{
+            videoFrameQ.pop(sharedFrame);
+        }
     }
     return true;
 }

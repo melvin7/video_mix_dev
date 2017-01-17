@@ -39,7 +39,7 @@ public:
         avcodec_close(video_dec_ctx);
         avformat_close_input(&fmt_ctx);
     }
-    bool getPicture(int64_t time);
+    bool getPicture(std::shared_ptr<Frame>, AVRational frameRate);
     //video state, like index and position in the pad
     //input filename
     std::string filename;
@@ -57,6 +57,7 @@ public:
     OverlayConfig layout;
     int64_t start_time;
     int64_t start_pts;
+    int frame_num;
 };
 
 /*

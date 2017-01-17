@@ -3,6 +3,7 @@
 
 #include <vector>
 #include "filter.h"
+#include "safequeue.h"
 
 struct InputFile;
 struct OutputFile;
@@ -26,18 +27,17 @@ public:
     void addInputFile(char* filename, int sequence);
     void openInputFile(int sequence);
     void deleteInputFile(int sequence);
-    void reapAVFrame();
     void constructing();
     void reconfig();
 
     SafeQueue<std::shared_ptr<Frame>> VideoQueue;
 private:
     std::vector<InputFile*> input;
-    std::vector<OverlayConfig> inputConfig;
     //may be a event with config info
     bool reconfigReq;
     Layout layout;
     AVFrame* canvas;
+    AVRational outputFrameRate;
     //AVFrame* outputFrame;
     //OutputFile* output;
 };
