@@ -151,7 +151,7 @@ bool InputFile::getPicture(std::shared_ptr<Frame>& pic, AVRational frameRate)
     if(videoFrameQ.size() <= 0){
         return false;
     }
-    int64_t pts = start_pts + av_rescale_q(1, frameRate,fmt_ctx->streams[video_stream_index]->time_base);
+    int64_t pts = start_pts + av_rescale_q(frame_num, frameRate,fmt_ctx->streams[video_stream_index]->time_base);
     //keep the last frame
     while(1){
         if(videoFrameQ.size() == 1){
@@ -166,5 +166,6 @@ bool InputFile::getPicture(std::shared_ptr<Frame>& pic, AVRational frameRate)
             videoFrameQ.pop(sharedFrame);
         }
     }
+    frame_num++;
     return true;
 }

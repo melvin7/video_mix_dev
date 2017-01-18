@@ -112,6 +112,8 @@ AVFrame* Scene::mixVideoStream()
         if(!input[index] || !input[index]->getPicture(sharedFrame,outputFrameRate))
             continue;
         //overlayPicture should not failed, but we will take care of it
+       main->pts = sharedFrame->frame->pts;
+        //av_frame_copy_props(main, sharedFrame->frame);
         overlayPicture(main, sharedFrame->frame, outputFrame, index);
         av_frame_unref(main);
         av_frame_move_ref(main, outputFrame);

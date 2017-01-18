@@ -107,8 +107,10 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
         char args[128];
         snprintf(args, sizeof(args),
                  "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
-                 ctx->width, ctx->height, ctx->pix_fmt, ctx->time_base.num, ctx->time_base.den, ctx->width, ctx->height
+                 ctx->width, ctx->height, ctx->pix_fmt, 1, 25, ctx->width, ctx->height
                  );
+//        snprintf(args, sizeof(args),
+//                 "video_size=1280x720:pix_fmt=0:time_base=1/25:pixel_aspect=1280/720");
         ret = avfilter_graph_create_filter(&buffersrc_ctx_overlayed, buffersrc, "overlayed",
                                        args, NULL, filter_graph);
         if(ret < 0){
@@ -179,7 +181,7 @@ int OverlayBox::pop_frame(AVFrame* frame)
     while (1) {
         ret = av_buffersink_get_frame(buffersink_ctx, frame);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF){
-            //printf("huheng %s!\n",ret == AVERROR(EAGAIN) ? "eagain":"error");
+            printf("huheng %s!\n",ret == AVERROR(EAGAIN) ? "eagain":"error");
             return ret;
         }
         if (ret < 0){
