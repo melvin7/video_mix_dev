@@ -8,9 +8,12 @@ extern "C"{
 
 #include "libavutil/time.h"
 }
-#include<string>
+#include <string>
 #include "filter.h"
 #include "safequeue.h"
+#include "util.h"
+
+struct OutputStream;
 
 //a video decoder decode the video stream in fmt
 typedef struct Decoder {
@@ -39,7 +42,7 @@ public:
         avcodec_close(video_dec_ctx);
         avformat_close_input(&fmt_ctx);
     }
-    bool getPicture(std::shared_ptr<Frame>, AVRational frameRate);
+    bool getPicture(std::shared_ptr<Frame>& sharedFrame, AVRational frameRate);
     //video state, like index and position in the pad
     //input filename
     std::string filename;
@@ -65,10 +68,7 @@ public:
 */
 int open_input_file(InputFile* is);
 int decoder_decode_frame(Decoder *d, AVFrame *frame);
-
-
+void decode_thread(InputFile* is);
 int write_audio_frame(AVFormatContext *oc, OutputStream *ost);
-
-
 
 #endif

@@ -1,4 +1,5 @@
-#include "demux_decode.h"
+#include "encode_mux.h"
+
 extern "C"{
 #include <libavutil/avassert.h>
 #include <libavutil/channel_layout.h>
@@ -7,6 +8,7 @@ extern "C"{
 #include <libavutil/timestamp.h>
 }
 
+#include "util.h"
 
 #define STREAM_DURATION   10000.0
 #define STREAM_FRAME_RATE 25 /* 25 images/s */

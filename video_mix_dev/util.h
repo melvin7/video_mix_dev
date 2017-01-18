@@ -4,6 +4,7 @@
 extern "C"{
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
+#include <libavutil/timestamp.h>
 }
 
 /* avoid a temporary address return build error in c++ */

@@ -71,6 +71,8 @@ int decoder_decode_frame(Decoder *d, AVFrame *frame) {
 
 int open_input_file(InputFile* is)
 {
+    //benchmark test
+    int64_t start_time = av_gettime_relative();
     int ret;
     AVCodec *dec;
     if(is == NULL)
@@ -105,38 +107,40 @@ int open_input_file(InputFile* is)
         return ret;
     }
     is->valid = true;
+    int64_t end_time = av_gettime_relative();
+    printf("huheng bench open input time: %lld", end_time - start_time);
     return 0;
 }
 
-void decode_thread(InputFile& is){
-    while(!is.abortRequest){
+void decode_thread(InputFile* is){
+    while(!is->abortRequest){
         //init a decoder
-        if(!is.valid){
+        if(!is->valid){
             av_usleep(1000000);
-            is.valid = (open_input_file(&is) == 0 ? true:false);
+            is->valid = (open_input_file(is) == 0 ? true:false);
             continue;
         }
-        Decoder d(is.fmt_ctx,is.video_dec_ctx,is.video_stream_index);
-        while(is.valid){
-            //Decoder d(is.fmt_ctx, is.video_dec_ctx, is.video_stream_index);
+        Decoder d(is->fmt_ctx,is->video_dec_ctx,is->video_stream_index);
+        while(is->valid){
+            //Decoder d(is->fmt_ctx, is->video_dec_ctx, is->video_stream_index);
             //AVFrame* frame = av_frame_alloc();
             auto sharedFrame = std::make_shared<Frame>();
             AVFrame* frame = sharedFrame->frame;
             int got_frame = decoder_decode_frame(&d, frame);
             if(got_frame < 0){
-                is.valid = false;
+                is->valid = false;
                 continue;
             }
             if(got_frame){
                 auto qFrame = std::make_shared<Frame>();
                 frame->pts = av_frame_get_best_effort_timestamp(frame);
-                if(is.start_pts == -1){
-                    is.start_time = av_gettime_relative();
-                    is.start_pts = frame->pts;
-                    is.frame_num = 0;
+                if(is->start_pts == -1){
+                    is->start_time = av_gettime_relative();
+                    is->start_pts = frame->pts;
+                    is->frame_num = 0;
                 }
                 av_frame_move_ref(qFrame->frame, frame);
-                is.videoFrameQ.push(qFrame);
+                is->videoFrameQ.push(qFrame);
             }
         }
      }

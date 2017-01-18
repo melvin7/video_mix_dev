@@ -14,7 +14,7 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
     AVFilter *buffersink = avfilter_get_by_name("buffersink");
     AVFilterInOut *outputs = avfilter_inout_alloc();
     AVFilterInOut *inputs  = avfilter_inout_alloc();
-    AVFilterInOut *overlayed_input;
+    AVFilterInOut *overlayed_output;
     //AVRational time_base = input_fmt_ctx->streams[video_stream_index]->time_base;
     //free old graph
     avfilter_graph_free(&filter_graph);
@@ -115,24 +115,30 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
             printf("buffersrc overlay failed\n");
             goto end;
         }
+//        snprintf(desc, sizeof(desc),
+//                 "[overlayed]scale=%dx%d,setsar=1/1[top];"
+//                 "[in]split[main][tmp];"
+//                 "[tmp]crop=w=%d:h=%d:x=%d:y=%d,setsar=1/1[bottom];"
+//                 "[top][bottom]blend=all_opacity=%f[picture];"
+//                 "[main][picture]overlay=x=%d:y=%d[out]",
+//                 c.overlay_w, c.overlay_h,
+//                 c.overlay_w, c.overlay_h, c.offset_x, c.offset_y,
+//                 c.opacity,
+//                 c.offset_x, c.offset_y
+//                 );
         snprintf(desc, sizeof(desc),
-                 "[overlayed]scale=%dx%d,setsar=1/1[top]"
-                 "[in]split[main][tmp];"
-                 "[tmp]crop=w=%d:h=%d:x=%d:y=%d,setsar=1/1[bottom];"
-                 "[top][bottom]blend=all_opacity=%f[picture];"
-                 "[main][picture]overlay=x=%d:y=%d[out]",
+                 "[overlayed]scale=%dx%d[top];"
+                 "[in][top]overlay=x=%d:y=%d[out]",
                  c.overlay_w, c.overlay_h,
-                 c.overlay_w, c.overlay_h, c.offset_x, c.offset_y,
-                 c.opacity,
                  c.offset_x, c.offset_y
                  );
         printf("stream desc: %s\n", desc);
-        overlayed_input = avfilter_inout_alloc();
-        overlayed_input->name       = av_strdup("overlayed");
-        overlayed_input->filter_ctx = buffersrc_ctx_overlayed;
-        overlayed_input->pad_idx    = 0;
-        overlayed_input->next       = NULL;
-        inputs->next = overlayed_input;
+        overlayed_output = avfilter_inout_alloc();
+        overlayed_output->name       = av_strdup("overlayed");
+        overlayed_output->filter_ctx = buffersrc_ctx_overlayed;
+        overlayed_output->pad_idx    = 0;
+        overlayed_output->next       = NULL;
+        outputs->next = overlayed_output;
     } else{
         goto end;
     }

@@ -4,10 +4,9 @@
 #include <vector>
 #include "filter.h"
 #include "safequeue.h"
-
-struct InputFile;
-struct OutputFile;
-
+#include "util.h"
+#include "demux_decode.h"
+#include "encode_mux.h"
 class Scene{
 public:
     Scene();
@@ -18,24 +17,30 @@ public:
         MaxInput = 16
     };
     struct Layout{
-        int num;
+        OverlayBox filterBox[MaxInput];
         OverlayConfig overlayMap[MaxInput];
         int sequence[MaxInput];
+        int num;
         Layout():num(0){}
     };
     //int openOutput(char* filename);
     void addInputFile(char* filename, int sequence);
     void openInputFile(int sequence);
     void deleteInputFile(int sequence);
-    void constructing();
+    void constructing(SafeQueue<std::shared_ptr<Frame>, 10>& videoq);
     void reconfig();
-
-    SafeQueue<std::shared_ptr<Frame>> VideoQueue;
+    AVFrame* mixVideoStream();
+    int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index);
+    SafeQueue<std::shared_ptr<Frame>, 100> VideoQueue;
+    int abortRequest;
+    //FIXME: should be private, for test
+    Layout layout;
 private:
-    std::vector<InputFile*> input;
+    //std::vector<InputFile*> input;
+    InputFile* input[MaxInput];
     //may be a event with config info
     bool reconfigReq;
-    Layout layout;
+
     AVFrame* canvas;
     AVRational outputFrameRate;
     //AVFrame* outputFrame;
