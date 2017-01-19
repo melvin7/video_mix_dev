@@ -9,7 +9,7 @@
 #include "encode_mux.h"
 #include "safequeue.h"
 #include "filter.h"
-#include "scene.h"
+#include "broadcastingstation.h"
 #include <string.h>
 
 #define STREAM_DURATION   10000.0
@@ -44,89 +44,6 @@ void concatyuv420P_test(AVFrame* dstFrame, AVFrame* overlayFrame)
         memcpy(dstFrame->data[2] + i * dstFrame->linesize[2], overlayFrame->data[2] + i * overlayFrame->linesize[2], overlayFrame->linesize[2]);
     }
 }
-
-
-//static AVFrame *get_one_video_frame(OutputStream *ost)
-//{
-//    AVCodecContext *c = ost->enc;
-//    int got_frame = 0;
-//    int ret;
-//    /* check if we want to generate more frames */
-//    if (av_compare_ts(ost->next_pts, c->time_base,
-//                      STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
-//        return NULL;
-
-//    /* when we pass a frame to the encoder, it may keep a reference to it
-//     * internally; make sure we do not overwrite it here */
-//    if (av_frame_make_writable(ost->frame) < 0)
-//        exit(1);
-//    if (av_frame_make_writable(ost->tmp_frame) < 0)
-//        exit(1);
-//    static int64_t lasttime = av_gettime_relative();
-//    int64_t diff = av_gettime_relative() - lasttime;
-//    while(diff < 40000){
-//        av_usleep(10000);
-//        diff = av_gettime_relative() - lasttime;
-//    }
-//    lasttime = av_gettime_relative();
-//    if(videoFrameQ.size() != 0){
-//        auto sharedFrame = std::make_shared<Frame>();
-//        videoFrameQ.pop(sharedFrame);
-//        av_frame_move_ref(ost->filter_frame, sharedFrame->frame);
-//        //swscale and send to
-//        if (!ost->sws_ctx) {
-//            ost->sws_ctx = sws_getContext(ost->filter_frame->width, ost->filter_frame->height,
-//                                          (enum AVPixelFormat)ost->filter_frame->format,
-//                                          c->width/2, c->height/2,
-//                                          c->pix_fmt,
-//                                          SCALE_FLAGS, NULL, NULL, NULL);
-//            if (!ost->sws_ctx) {
-//                fprintf(stderr,
-//                        "Could not initialize the conversion context\n");
-//                exit(1);
-//            }
-//        }
-//        sws_scale(ost->sws_ctx,
-//                  (const uint8_t * const *)ost->filter_frame->data, ost->filter_frame->linesize,
-//                  0, ost->filter_frame->height, ost->tmp_frame->data, ost->tmp_frame->linesize);
-//        av_frame_unref(ost->filter_frame);
-//        //reap stream frame
-//        concatyuv420P_test(ost->frame, ost->tmp_frame);
-//    }else{
-//        fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height);
-//    }
-//    //av_frame_unref(ost->tmp_frame);
-//    ost->frame->pts = ost->next_pts++;
-//    //add filter reap picture
-//    OverlayBox test_box;
-//    OverlayBox::OverlayConfig conf={(1.0)*(ost->next_pts % 100)/100,320,240,(1280+320)*(ost->next_pts % 250)/250,0};
-//    //
-//    int ss = av_gettime_relative();
-//    test_box.config(conf, OverlayBox::PICTURE_OVERLAY, (void*)"1.png");
-//    if(test_box.valid){
-//        test_box.push_main_frame(ost->frame);
-//        test_box.pop_frame(ost->output_frame);
-//        ost->output_frame->pts = ost->next_pts -1;
-//    }else{
-//        return ost->frame;
-//    }
-//    //reap text
-//    OverlayBox text_box;
-//    OverlayBox::OverlayConfig text_conf = {1.0, 0,0,(1280+320)*(ost->next_pts % 250)/250,500};
-//    text_box.config(text_conf, OverlayBox::TEXT_OVERLAY, (void*)"MUDU TV");
-//    if(text_box.valid){
-//        text_box.push_main_frame(ost->output_frame);
-//        text_box.pop_frame(ost->text_frame);
-//        ost->text_frame->pts = ost->next_pts -1;
-//        int end = av_gettime_relative();
-//        printf("huheng time: %lld\n", end-ss);
-//        return ost->text_frame;
-//    }else{
-//        return ost->output_frame;
-//    }
-//    ost->output_frame->pts = ost->next_pts-1;
-//    return ost->output_frame;
-//}
 
 //the global value should be members of broadcasting station
 
@@ -170,6 +87,11 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
     return (frame || got_packet) ? 0 : 1;
 }
 
+//benchmark
+int64_t g_start_time;
+int g_frames_num = 1;
+
+
 void output_thread(OutputFile& of)
 {
     while(1){
@@ -180,7 +102,7 @@ void output_thread(OutputFile& of)
         //get a video frame
         AVFormatContext* oc = of.fmt_ctx;
         AVDictionary * opt = NULL;
-
+        //FIXME: open a outputfile
         int ret = avformat_write_header(oc, &opt);
         if (ret < 0) {
             //fprintf(stderr, "Error occurred when opening output file: %s\n", av_err2str(ret));
@@ -196,15 +118,20 @@ void output_thread(OutputFile& of)
                 (!encode_audio || av_compare_ts(of.video_st.next_pts, of.video_st.enc->time_base,
                                                 of.audio_st.next_pts, of.audio_st.enc->time_base) <= 0)) {
                 encode_video = !write_one_video_frame(oc, &of.video_st);
+                g_frames_num++;
             } else {
                 encode_audio = !write_audio_frame(oc, &of.audio_st);
             }
+            int64_t now = av_gettime_relative();
+            printf("huheng consistency time: %lld, framesnum: %d \n", now - g_start_time, g_frames_num);
+            printf("outputrate: %d\n", (now - g_start_time)/g_frames_num);
         }
         /* Write the trailer, if any. The trailer must be written before you
          * close the CodecContexts open when you wrote the header; otherwise
          * av_write_trailer() may try to use memory that was freed on
          * av_codec_close(). */
         av_write_trailer(oc);
+        //FIXME: close outputfile
     }
 
 }
@@ -214,21 +141,46 @@ int main(int argc, char** argv)
     av_register_all();
     avfilter_register_all();
     avformat_network_init();
+    g_start_time = av_gettime_relative();
     OutputFile of(argv[1]);
     if(open_output_file(&of) != 0)
         return -1;
-    //1 create scene
-    Scene* s = new Scene();
+    //1 create BroadcastingStation
+    BroadcastingStation* s = new BroadcastingStation();
     //2.start streaming thread
-    //3.manage command
-    s->addInputFile("a.mp4", 0);
-    s->openInputFile(0);
+
+    //4.
+    std::thread reapThread(std::mem_fn(&BroadcastingStation::constructing), s, std::ref(stationOutputVideoQ));
+    std::thread outputThread(output_thread, std::ref(of));
+
+    //manage the BroadcastingStation accordding to event
+
+    s->addInputFile("rtmp://live.mudu.tv/watch/134w50", 0);
     s->layout.overlayMap[0].overlay_w = 320;
     s->layout.overlayMap[0].overlay_h = 240;
-    //4.
-    std::thread reapThread(std::mem_fn(&Scene::constructing), s, std::ref(stationOutputVideoQ));
-    std::thread outputThread(output_thread, std::ref(of));
+    s->openInputFile(0);
+    //s->addInputFile("rtmp://live.mudu.tv/watch/134w50",1);
+    s->addInputFile("a.mp4", 1);
+    s->layout.overlayMap[1] = {1.0, 640, 360, 400, 400};
+    s->openInputFile(1);
+    //
+    s->addInputFile("/home/huheng/Videos/samplemedia/SampleVideo_1280x720_1mb.mp4", 2);
+    s->layout.overlayMap[2] = {1.0, 320, 180, 200, 200};
+    s->openInputFile(2);
+
+    //
+    int tt = 0;
+    while(1){
+        av_usleep(300000);
+        s->layout.overlayMap[0] = {0.5,320,240,0,(tt) % 500};
+        tt += 100;
+    }
+
+
+    //thread join
+
     outputThread.join();
+    reapThread.join();
     delete s;
 }
 

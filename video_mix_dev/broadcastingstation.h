@@ -1,5 +1,5 @@
-#ifndef SCENE_H
-#define SCENE_H
+#ifndef BROADCASTINGSTATION_H
+#define BROADCASTINGSTATION_H
 
 #include <vector>
 #include "filter.h"
@@ -7,10 +7,10 @@
 #include "util.h"
 #include "demux_decode.h"
 #include "encode_mux.h"
-class Scene{
+class BroadcastingStation{
 public:
-    Scene();
-    ~Scene();
+    BroadcastingStation();
+    ~BroadcastingStation();
     enum{
         Width = 1280,
         Height = 720,
@@ -27,7 +27,7 @@ public:
     void addInputFile(char* filename, int sequence);
     void openInputFile(int sequence);
     void deleteInputFile(int sequence);
-    void constructing(SafeQueue<std::shared_ptr<Frame>, 10>& videoq);
+    void reapFrames();
     void reconfig();
     AVFrame* mixVideoStream();
     int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index);
@@ -42,11 +42,13 @@ private:
     bool reconfigReq;
 
     AVFrame* canvas;
+
+    //output
     AVRational outputFrameRate;
-    //AVFrame* outputFrame;
-    //OutputFile* output;
+    vector<OutputFile*> output;
+    SafeQueue<std::shared_ptr<Frame>, 25> outputVideoQ;
+    int outputFrameNum;
+    int64_t start_time;
 };
 
-
-
-#endif // SCENE_H
+#endif // BroadcastingStation_H

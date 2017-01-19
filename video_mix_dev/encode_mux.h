@@ -18,6 +18,7 @@ void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height);
 AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height);
 int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, OutputStream *os, AVPacket *pkt);
 void close_stream(AVFormatContext *oc, OutputStream *ost);
+int write_audio_frame(AVFormatContext *oc, OutputStream *ost);
 
 typedef struct OutputStream {
     AVStream *st;

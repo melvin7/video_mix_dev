@@ -1,16 +1,18 @@
-#include "scene.h"
+#include "broadcastingstation.h"
 #include <stdio.h>
 #include "demux_decode.h"
 #include "encode_mux.h"
 
-Scene::Scene():reconfigReq(false)
+BroadcastingStation::BroadcastingStation():
+    reconfigReq(false),
+    outputFrameNum(0)
 {
     canvas = alloc_picture(AV_PIX_FMT_YUV420P, 1280, 720);
     outputFrameRate = {1,25};
     fill_yuv_image(canvas, 0, 1280, 720);
 }
 
-Scene::~Scene()
+BroadcastingStation::~BroadcastingStation()
 {
     for(int i=1; i<layout.num; ++i)
         if(input[i] != NULL)
@@ -22,13 +24,13 @@ Scene::~Scene()
     //delete ouput;
 }
 
-//int Scene::openOutput(char* filename)
+//int BroadcastingStation::openOutput(char* filename)
 //{
 //    output = new OutputFile(filename);
 //    return open_output_file(output);
 //}
 
-void Scene::addInputFile(char* filename, int sequence)
+void BroadcastingStation::addInputFile(char* filename, int sequence)
 {
     if(sequence >= 15 || sequence < 0){
         printf("file sequence is invalid!\n");
@@ -39,11 +41,13 @@ void Scene::addInputFile(char* filename, int sequence)
         return;
     }
     input[sequence] = new InputFile(filename);
-    layout.sequence[layout.num] = layout.num;
+    layout.sequence[sequence] = sequence;
+    input[sequence]->layoutConfig = layout.overlayMap[sequence];
+    //num++ must be the last step as the other thread may read it
     layout.num++;
 }
 
-void Scene::openInputFile(int sequence)
+void BroadcastingStation::openInputFile(int sequence)
 {
     if(sequence >= 15 || sequence < 0){
         printf("file sequence is invalid!\n");
@@ -56,8 +60,11 @@ void Scene::openInputFile(int sequence)
     input[sequence]->decodeThread = new std::thread(decode_thread, input[sequence]);
 }
 
-void Scene::deleteInputFile(int sequence)
+void BroadcastingStation::deleteInputFile(int sequence)
 {
+    //FIXME: add mutex or send event
+    //num-- should be the first step because the other thread use it
+    layout.num--;
     if(sequence >= 15 || sequence < 0){
         printf("file sequence is invalid!\n");
         return;
@@ -70,10 +77,10 @@ void Scene::deleteInputFile(int sequence)
         delete input[sequence];
         input[sequence] = NULL;
     }
-    layout.num--;
+
 }
 
-void Scene::reconfig()
+void BroadcastingStation::reconfig()
 {
     //update layout
 
@@ -81,10 +88,21 @@ void Scene::reconfig()
     reconfigReq = true;
 }
 
-int Scene::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index)
+int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index)
 {
-    if(!layout.filterBox[index].valid){
-        layout.filterBox[index].config(layout.overlayMap[index],OverlayBox::STREAM_OVERLAY,input[index]->video_dec_ctx);
+    //main frame is YUV420P
+    //top may be YUVA420P added alpha
+    //FIXME reconfig logic
+    if(!layout.filterBox[index].valid ||
+            top->format != input[index]->fa.fmt ||
+            top->width  != input[index]->fa.width ||
+            top->height != input[index]->fa.height ||
+            layout.overlayMap[index].offset_y != input[index]->layoutConfig.offset_y){
+        //reconfig filterbox
+        FrameArgs frameargs = {outputFrameRate, top->format, top->width, top->height};
+        layout.filterBox[index].config(layout.overlayMap[index],OverlayBox::STREAM_OVERLAY, &frameargs);
+        input[index]->fa = frameargs;
+        input[index]->layoutConfig.offset_y = layout.overlayMap[index].offset_y;
     }
     if(!layout.filterBox[index].valid){
         //memory concat
@@ -98,7 +116,7 @@ int Scene::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int
     return 0;
 }
 
-AVFrame* Scene::mixVideoStream()
+AVFrame* BroadcastingStation::mixVideoStream()
 {
     AVFrame* main = av_frame_clone(canvas);
     AVFrame* outputFrame = av_frame_alloc();
@@ -123,11 +141,18 @@ AVFrame* Scene::mixVideoStream()
     printf("huheng debug mix time: %lld\n", time_end - time_start);
     return main;
 }
+//benchmark
+int64_t out_time;
 
 //constructing thread output frames to a video queue
-//todo: add pausing flag for switch scenes
-void Scene::constructing(SafeQueue<std::shared_ptr<Frame>, 10>& videoq)
+//todo: add pausing flag for switch SCENE
+void BroadcastingStation::reapFrames()
 {
+    //first frame was canvas, set frameNum and clock
+    auto firstFrame = std::make_shared<Frame>();
+    av_frame_ref(firstFrame->frame, canvas);
+    videoq.push()
+    //every 1/framerate output a frame
     while(!abortRequest){
         if(reconfigReq){
             //setFilterBox();
@@ -139,5 +164,9 @@ void Scene::constructing(SafeQueue<std::shared_ptr<Frame>, 10>& videoq)
         av_frame_move_ref(sharedFrame->frame, outputFrame);
         av_frame_free(&outputFrame);
         videoq.push(sharedFrame);
+        outputFrameNum++;
+        int64_t now = av_gettime_relative();
+        printf("huheng: output_time %lld\n", now - out_time);
+        out_time = now;
     }
 }

@@ -77,6 +77,7 @@ int open_input_file(InputFile* is)
     AVCodec *dec;
     if(is == NULL)
         return -1;
+    avcodec_close(is->video_dec_ctx);
     avformat_close_input(&is->fmt_ctx);
     is->fmt_ctx = NULL;
     is->start_time = -1;
@@ -106,6 +107,7 @@ int open_input_file(InputFile* is)
         av_log(NULL, AV_LOG_ERROR, "Cannot open video decoder\n");
         return ret;
     }
+    is->video_time_base = is->fmt_ctx->streams[is->video_stream_index]->time_base;
     is->valid = true;
     int64_t end_time = av_gettime_relative();
     printf("huheng bench open input time: %lld", end_time - start_time);
@@ -121,7 +123,7 @@ void decode_thread(InputFile* is){
             continue;
         }
         Decoder d(is->fmt_ctx,is->video_dec_ctx,is->video_stream_index);
-        while(is->valid){
+        while(!is->abortRequest && is->valid){
             //Decoder d(is->fmt_ctx, is->video_dec_ctx, is->video_stream_index);
             //AVFrame* frame = av_frame_alloc();
             auto sharedFrame = std::make_shared<Frame>();
@@ -151,7 +153,7 @@ bool InputFile::getPicture(std::shared_ptr<Frame>& pic, AVRational frameRate)
     if(videoFrameQ.size() <= 0){
         return false;
     }
-    int64_t pts = start_pts + av_rescale_q(frame_num, frameRate,fmt_ctx->streams[video_stream_index]->time_base);
+    int64_t pts = start_pts + av_rescale_q(frame_num, frameRate, video_time_base);
     //keep the last frame
     while(1){
         if(videoFrameQ.size() == 1){

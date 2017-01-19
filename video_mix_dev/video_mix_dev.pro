@@ -12,7 +12,7 @@ SOURCES += main.cpp \
     filter.cpp \
     demux_decode.cpp \
     encode_mux.cpp \
-    scene.cpp
+    broadcastingstation.cpp
 
 HEADERS += \
     safequeue.h \
@@ -20,4 +20,4 @@ HEADERS += \
     demux_decode.h \
     encode_mux.h \
     util.h \
-    scene.h
+    broadcastingstation.h

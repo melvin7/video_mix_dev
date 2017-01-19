@@ -37,7 +37,8 @@ typedef struct Decoder {
 class InputFile{
 public:
     InputFile(char* fname):filename(fname), fmt_ctx(NULL), video_dec_ctx(NULL),
-        video_stream_index(-1), valid(false), abortRequest(false),decodeThread(NULL){}
+        video_stream_index(-1), valid(false), video_time_base({1,1000}),
+        abortRequest(false),decodeThread(NULL){}
     ~InputFile(){
         avcodec_close(video_dec_ctx);
         avformat_close_input(&fmt_ctx);
@@ -47,20 +48,26 @@ public:
     //input filename
     std::string filename;
     AVFormatContext* fmt_ctx;
+    //video config
     AVCodecContext* video_dec_ctx;
     int video_stream_index;
+    SafeQueue<std::shared_ptr<Frame>, 100> videoFrameQ;
+    OverlayConfig layoutConfig;
+    int frame_num;
+    AVRational video_time_base;
+    FrameArgs fa;
+
+    //audio config
+    SafeQueue<std::shared_ptr<Frame>, 100> audioFrameQ;
+
     //input stream is valid, false: not init, eof or error
     bool valid;
-    bool abortRequest;
-    //push AVFrame to queue
+    bool abortRequest;   
     std::thread* decodeThread;
-    SafeQueue<std::shared_ptr<Frame>, 100> videoFrameQ;
-    SafeQueue<std::shared_ptr<Frame>, 100> audioFrameQ;
     //video overlay config
-    OverlayConfig layout;
     int64_t start_time;
     int64_t start_pts;
-    int frame_num;
+
 };
 
 /*
@@ -69,6 +76,5 @@ public:
 int open_input_file(InputFile* is);
 int decoder_decode_frame(Decoder *d, AVFrame *frame);
 void decode_thread(InputFile* is);
-int write_audio_frame(AVFormatContext *oc, OutputStream *ost);
 
 #endif

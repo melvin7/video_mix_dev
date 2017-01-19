@@ -103,11 +103,12 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
                  );
         printf("text desc: %s\n", desc);
     } else if(t == STREAM_OVERLAY){
-        AVCodecContext* ctx = (AVCodecContext*)opaque;
+        //AVCodecContext* ctx = (AVCodecContext*)opaque;
+        FrameArgs* frameargs = (FrameArgs*)opaque;
         char args[128];
         snprintf(args, sizeof(args),
                  "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
-                 ctx->width, ctx->height, ctx->pix_fmt, 1, 25, ctx->width, ctx->height
+                 frameargs->width, frameargs->height, frameargs->fmt, 1, 25, frameargs->width, frameargs->height
                  );
 //        snprintf(args, sizeof(args),
 //                 "video_size=1280x720:pix_fmt=0:time_base=1/25:pixel_aspect=1280/720");
@@ -117,23 +118,23 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
             printf("buffersrc overlay failed\n");
             goto end;
         }
-//        snprintf(desc, sizeof(desc),
-//                 "[overlayed]scale=%dx%d,setsar=1/1[top];"
-//                 "[in]split[main][tmp];"
-//                 "[tmp]crop=w=%d:h=%d:x=%d:y=%d,setsar=1/1[bottom];"
-//                 "[top][bottom]blend=all_opacity=%f[picture];"
-//                 "[main][picture]overlay=x=%d:y=%d[out]",
-//                 c.overlay_w, c.overlay_h,
-//                 c.overlay_w, c.overlay_h, c.offset_x, c.offset_y,
-//                 c.opacity,
-//                 c.offset_x, c.offset_y
-//                 );
         snprintf(desc, sizeof(desc),
-                 "[overlayed]scale=%dx%d[top];"
-                 "[in][top]overlay=x=%d:y=%d[out]",
+                 "[overlayed]scale=%dx%d,setsar=1/1[top];"
+                 "[in]split[main][tmp];"
+                 "[tmp]crop=w=%d:h=%d:x=%d:y=%d,setsar=1/1[bottom];"
+                 "[top][bottom]blend=all_opacity=%f[picture];"
+                 "[main][picture]overlay=x=%d:y=%d[out]",
                  c.overlay_w, c.overlay_h,
+                 c.overlay_w, c.overlay_h, c.offset_x, c.offset_y,
+                 c.opacity,
                  c.offset_x, c.offset_y
                  );
+//        snprintf(desc, sizeof(desc),
+//                 "[overlayed]scale=%dx%d[top];"
+//                 "[in][top]overlay=x=%d:y=%d[out]",
+//                 c.overlay_w, c.overlay_h,
+//                 c.offset_x, c.offset_y
+//                 );
         printf("stream desc: %s\n", desc);
         overlayed_output = avfilter_inout_alloc();
         overlayed_output->name       = av_strdup("overlayed");

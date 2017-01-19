@@ -15,6 +15,8 @@ extern "C"{
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 
 #define SCALE_FLAGS SWS_BICUBIC
+
+//FIXME debug
 static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 {
     AVRational *time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
@@ -419,7 +421,7 @@ void fill_yuv_image(AVFrame *pict, int frame_index,
 //        }
 //    }
     /* Y */
-    memset(pict->data[0], 0x0, height * pict->linesize[0]);
+    memset(pict->data[0], 0x80, height * pict->linesize[0]);
     memset(pict->data[1], 0x80, height/2 * pict->linesize[1]);
     memset(pict->data[2], 0x80, height/2 * pict->linesize[2]);
 //    for (y = 0; y < height; y++)
