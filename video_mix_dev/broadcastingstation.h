@@ -31,7 +31,6 @@ public:
     void reconfig();
     AVFrame* mixVideoStream();
     int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index);
-    SafeQueue<std::shared_ptr<Frame>, 100> VideoQueue;
     int abortRequest;
     //FIXME: should be private, for test
     Layout layout;

@@ -149,21 +149,31 @@ int64_t out_time;
 void BroadcastingStation::reapFrames()
 {
     //first frame was canvas, set frameNum and clock
+    start_time = av_gettime_relative();
     auto firstFrame = std::make_shared<Frame>();
     av_frame_ref(firstFrame->frame, canvas);
-    videoq.push()
+    firstFrame->frame->pts = 0;
+    outputFrameNum = 1;
+    outputVideoQ.push(firstFrame);
     //every 1/framerate output a frame
     while(!abortRequest){
         if(reconfigReq){
             //setFilterBox();
             reconfigReq = false;
         }
+        //
+        int64_t current_time = av_gettime_relative();
+        int64_t output_time = (int64_t)outputFrameNum * 1000000 * outputFrameRate.num / outputFrameRate.den;
+        while(current_time - start_time < output_time){
+            av_usleep(5000); 
+            current_time = av_gettime_relative();
+        }
         //every 1/framerate time output a AVFrame
         AVFrame* outputFrame = mixVideoStream();
         auto sharedFrame = std::make_shared<Frame>();
         av_frame_move_ref(sharedFrame->frame, outputFrame);
         av_frame_free(&outputFrame);
-        videoq.push(sharedFrame);
+        outputVideoQ.push(sharedFrame);
         outputFrameNum++;
         int64_t now = av_gettime_relative();
         printf("huheng: output_time %lld\n", now - out_time);
