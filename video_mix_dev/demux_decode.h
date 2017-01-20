@@ -43,7 +43,7 @@ public:
         avcodec_close(video_dec_ctx);
         avformat_close_input(&fmt_ctx);
     }
-    bool getPicture(std::shared_ptr<Frame>& sharedFrame, AVRational frameRate);
+    //bool getPicture(std::shared_ptr<Frame>& sharedFrame, AVRational frameRate);
     //video state, like index and position in the pad
     //input filename
     std::string filename;
@@ -53,7 +53,6 @@ public:
     int video_stream_index;
     SafeQueue<std::shared_ptr<Frame>, 100> videoFrameQ;
     OverlayConfig layoutConfig;
-    int frame_num;
     AVRational video_time_base;
     FrameArgs fa;
 
@@ -67,14 +66,16 @@ public:
     //video overlay config
     int64_t start_time;
     int64_t start_pts;
+    int start_frame_num;
 
 };
 
 /*
     open input file
 */
+class BroadcastingStation;
 int open_input_file(InputFile* is);
 int decoder_decode_frame(Decoder *d, AVFrame *frame);
-void decode_thread(InputFile* is);
+void decode_thread(InputFile* is, BroadcastingStation* bs);
 
 #endif

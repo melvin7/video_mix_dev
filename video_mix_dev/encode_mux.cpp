@@ -533,11 +533,13 @@ int open_output_file(OutputFile* of)
     /* allocate the output media context */
     avformat_alloc_output_context2(&of->fmt_ctx, NULL, NULL, of->filename);
     if (!of->fmt_ctx) {
-        printf("Could not deduce output format from file extension: using MPEG.\n");
+        printf("Could not deduce output format from file extension: using FLV.\n");
         avformat_alloc_output_context2(&of->fmt_ctx, NULL, "flv", of->filename);
     }
-    if (!of->fmt_ctx)
-        return 1;
+    if (!of->fmt_ctx){
+        printf("open output file failed!");
+        return -1;
+    }
     AVFormatContext* oc = of->fmt_ctx;
     AVOutputFormat* fmt = oc->oformat;
     AVCodec *audio_codec, *video_codec;

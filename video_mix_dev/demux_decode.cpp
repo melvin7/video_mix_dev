@@ -1,5 +1,6 @@
 #include "util.h"
 #include "demux_decode.h"
+#include "broadcastingstation.h"
 extern "C" {
 #include "libavutil/mathematics.h"
 }
@@ -114,11 +115,11 @@ int open_input_file(InputFile* is)
     return 0;
 }
 
-void decode_thread(InputFile* is){
+void decode_thread(InputFile* is, BroadcastingStation* bs){
     while(!is->abortRequest){
         //init a decoder
         if(!is->valid){
-            av_usleep(1000000);
+            av_usleep(10000);
             is->valid = (open_input_file(is) == 0 ? true:false);
             continue;
         }
@@ -139,7 +140,7 @@ void decode_thread(InputFile* is){
                 if(is->start_pts == -1){
                     is->start_time = av_gettime_relative();
                     is->start_pts = frame->pts;
-                    is->frame_num = 0;
+                    is->start_frame_num = bs->outputFrameNum + 1;
                 }
                 av_frame_move_ref(qFrame->frame, frame);
                 is->videoFrameQ.push(qFrame);
@@ -148,26 +149,26 @@ void decode_thread(InputFile* is){
      }
 }
 
-bool InputFile::getPicture(std::shared_ptr<Frame>& pic, AVRational frameRate)
-{
-    if(videoFrameQ.size() <= 0){
-        return false;
-    }
-    int64_t pts = start_pts + av_rescale_q(frame_num, frameRate, video_time_base);
-    //keep the last frame
-    while(1){
-        if(videoFrameQ.size() == 1){
-            pic = videoFrameQ.front();
-            break;
-        } 
-        std::shared_ptr<Frame> sharedFrame;
-        if(videoFrameQ.front()->frame->pts > pts){
-            pic = videoFrameQ.front(); 
-            break;
-        }else{
-            videoFrameQ.pop(sharedFrame);
-        }
-    }
-    frame_num++;
-    return true;
-}
+//bool InputFile::getPicture(std::shared_ptr<Frame>& pic, AVRational frameRate)
+//{
+//    if(videoFrameQ.size() <= 0){
+//        return false;
+//    }
+//    int64_t pts = start_pts + av_rescale_q(frame_num, frameRate, video_time_base);
+//    //keep the last frame
+//    while(1){
+//        if(videoFrameQ.size() == 1){
+//            pic = videoFrameQ.front();
+//            break;
+//        }
+//        std::shared_ptr<Frame> sharedFrame;
+//        if(videoFrameQ.front()->frame->pts > pts){
+//            pic = videoFrameQ.front();
+//            break;
+//        }else{
+//            videoFrameQ.pop(sharedFrame);
+//        }
+//    }
+//    frame_num++;
+//    return true;
+//}

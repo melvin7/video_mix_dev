@@ -45,11 +45,19 @@ typedef struct OutputFile
     AVFormatContext *fmt_ctx;
     OutputStream video_st;
     OutputStream audio_st;
+    bool valid;
     OutputFile(char* name){
+        valid = false;
         filename = (char*)malloc(strlen(name) + 1);
         strcpy(filename, name);
         memset(&video_st, 0, sizeof(video_st));
         memset(&audio_st, 0, sizeof(audio_st));
+    }
+    void close(){
+        valid = false;
+        close_stream(fmt_ctx, &video_st);
+        close_stream(fmt_ctx, &audio_st);
+        avformat_close_input(&fmt_ctx);
     }
     ~OutputFile(){
         close_stream(fmt_ctx, &video_st);

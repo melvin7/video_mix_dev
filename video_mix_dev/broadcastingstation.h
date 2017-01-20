@@ -2,11 +2,13 @@
 #define BROADCASTINGSTATION_H
 
 #include <vector>
-#include "filter.h"
+#include <unordered_map>
+
 #include "safequeue.h"
 #include "util.h"
 #include "demux_decode.h"
 #include "encode_mux.h"
+
 class BroadcastingStation{
 public:
     BroadcastingStation();
@@ -23,31 +25,41 @@ public:
         int num;
         Layout():num(0){}
     };
-    //int openOutput(char* filename);
+
+    //interface for event request
     void addInputFile(char* filename, int sequence);
     void openInputFile(int sequence);
     void deleteInputFile(int sequence);
+    void addOutputFile(char* filename, int index);
+    void deleteOutputFile(int index);
+    void startStreaming();
+    void stopStreaming();
+
+    //thread
     void reapFrames();
+    void streamingOut();
+
     void reconfig();
     AVFrame* mixVideoStream();
     int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index);
+    bool getPicture(InputFile* is, std::shared_ptr<Frame>& pic);
+
     int abortRequest;
     //FIXME: should be private, for test
     Layout layout;
+    //output
+    AVRational outputFrameRate;
+    std::unordered_map<int, OutputFile*> outputs;
+    //int openOutput(char* filename);
+    SafeQueue<std::shared_ptr<Frame>, 50> outputVideoQ;
+    int outputFrameNum;
+    int64_t start_time;
 private:
-    //std::vector<InputFile*> input;
     InputFile* input[MaxInput];
     //may be a event with config info
     bool reconfigReq;
-
     AVFrame* canvas;
-
-    //output
-    AVRational outputFrameRate;
-    vector<OutputFile*> output;
-    SafeQueue<std::shared_ptr<Frame>, 25> outputVideoQ;
-    int outputFrameNum;
-    int64_t start_time;
+    bool streaming;
 };
 
 #endif // BroadcastingStation_H

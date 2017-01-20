@@ -50,7 +50,7 @@ void concatyuv420P_test(AVFrame* dstFrame, AVFrame* overlayFrame)
 SafeQueue<std::shared_ptr<Frame>,10> stationOutputVideoQ;
 static bool streaming = true;
 
-int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
+int write_one_video_frame(BroadcastingStation* bs, AVFormatContext *oc, OutputStream *ost)
 {
     int ret;
     AVCodecContext *c;
@@ -60,17 +60,16 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
 
     c = ost->enc;
     std::shared_ptr<Frame> sharedFrame;
-    stationOutputVideoQ.pop(sharedFrame);
+    bs->outputVideoQ.pop(sharedFrame);
     //frame = get_video_frame(ost);
     //send to filter
     frame = sharedFrame->frame;
     frame->pts = ost->next_pts++;
     av_init_packet(&pkt);
-
     /* encode the image */
     ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
     if (ret < 0) {
-        //fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+        fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
         exit(1);
     }
     if (got_packet) {
@@ -80,7 +79,7 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
     }
 
     if (ret < 0) {
-        //fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
+        fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
         exit(1);
     }
 
@@ -91,8 +90,7 @@ int write_one_video_frame(AVFormatContext *oc, OutputStream *ost)
 int64_t g_start_time;
 int g_frames_num = 1;
 
-
-void output_thread(OutputFile& of)
+void output_thread(BroadcastingStation* bs, OutputFile& of)
 {
     while(1){
         if(!streaming){
@@ -105,7 +103,7 @@ void output_thread(OutputFile& of)
         //FIXME: open a outputfile
         int ret = avformat_write_header(oc, &opt);
         if (ret < 0) {
-            //fprintf(stderr, "Error occurred when opening output file: %s\n", av_err2str(ret));
+            fprintf(stderr, "Error occurred when opening output file: %s\n", av_err2str(ret));
             av_usleep(1000000);
             continue;
         }
@@ -117,7 +115,7 @@ void output_thread(OutputFile& of)
             if (encode_video &&
                 (!encode_audio || av_compare_ts(of.video_st.next_pts, of.video_st.enc->time_base,
                                                 of.audio_st.next_pts, of.audio_st.enc->time_base) <= 0)) {
-                encode_video = !write_one_video_frame(oc, &of.video_st);
+                encode_video = !write_one_video_frame(bs, oc, &of.video_st);
                 g_frames_num++;
             } else {
                 encode_audio = !write_audio_frame(oc, &of.audio_st);
@@ -150,11 +148,10 @@ int main(int argc, char** argv)
     //2.start streaming thread
 
     //4.
-    std::thread reapThread(std::mem_fn(&BroadcastingStation::constructing), s, std::ref(stationOutputVideoQ));
-    std::thread outputThread(output_thread, std::ref(of));
+    std::thread reapThread(std::mem_fn(&BroadcastingStation::reapFrames),s);
+    std::thread outputThread(output_thread, s, std::ref(of));
 
     //manage the BroadcastingStation accordding to event
-
     s->addInputFile("rtmp://live.mudu.tv/watch/134w50", 0);
     s->layout.overlayMap[0].overlay_w = 320;
     s->layout.overlayMap[0].overlay_h = 240;
@@ -182,5 +179,6 @@ int main(int argc, char** argv)
     outputThread.join();
     reapThread.join();
     delete s;
+    return 0;
 }
 
