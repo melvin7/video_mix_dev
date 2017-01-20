@@ -1,15 +1,30 @@
-### construct interfaces for demux decode encode and mux
-
 ### todo list
+
 1. add alpha channel
     format map
     add alpha value
     change format
-2. dynamic change overlaybox
+
+2. dynamic change overlaybox, reconfig trigger
 
 3. overlay scale and concat 
 
+4. muti output 
 
+5. benchmark of overlay
+
+6. modify input streams data struct
+
+7. json string parser and overlay config
+
+8. text and picture overlay support
+
+9. audio mix and audio output
+
+10. audio input added
+
+
+### construct interfaces for demux decode encode and mux
 
 #### data struct
 
