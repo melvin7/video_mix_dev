@@ -84,7 +84,7 @@ int open_input_file(InputFile* is)
     is->start_time = -1;
     is->start_pts = -1;
     if ((ret = avformat_open_input(&is->fmt_ctx, is->filename.c_str(), NULL, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot open input file\n");
+        av_log(NULL, AV_LOG_ERROR, "Cannot open input file: %s\n", is->filename.c_str());
         return ret;
     }
 
@@ -119,7 +119,7 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
     while(!is->abortRequest){
         //init a decoder
         if(!is->valid){
-            av_usleep(10000);
+            av_usleep(100000);
             is->valid = (open_input_file(is) == 0 ? true:false);
             continue;
         }

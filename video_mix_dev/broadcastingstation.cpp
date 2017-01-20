@@ -231,10 +231,9 @@ void BroadcastingStation::deleteOutputFile(int index){
     outputs.erase(index);
 }
 
-bool BroadcastingStation::startStreaming()
+void BroadcastingStation::startStreaming()
 {
     streaming = true;
-    return streaming;
 }
 
 void BroadcastingStation::stopStreaming()
@@ -260,7 +259,7 @@ void BroadcastingStation::streamingOut()
                 sharedFrame = outputVideoQ.front();
                 int64_t pts = av_rescale(sharedFrame->frame->pts, 1000000 * outputFrameRate.num, outputFrameRate.den);
                 if(pts < now - 2000000){
-                    output.VideoQ.pop(sharedFrame);
+                    outputVideoQ.pop(sharedFrame);
                 }
             }
             av_usleep(30000);
@@ -276,7 +275,7 @@ void BroadcastingStation::streamingOut()
                 continue;
             }
             AVFormatContext* oc = of.second->fmt_ctx;
-            AVDictionary * opt = NULL;
+            AVDictionary * opt = NULL;   
             int ret = avformat_write_header(oc, &opt);
             if (ret < 0) {
                 fprintf(stderr, "Error occurred when opening output file: %s\n", av_err2str(ret));
@@ -284,16 +283,30 @@ void BroadcastingStation::streamingOut()
                 continue;
             }
             streaming = true;
+            encoder_ctx = of.second->video_st.enc;
             of.second->valid = true;
         }
-        streaming = flags;
-        printf("start streaming result: %d\n", flags);
+        //printf("start streaming result: %d\n", flags);
         //write packet, use codec
-
         std::shared_ptr<Frame> sharedFrame;
-        while(streaming){
+        int ret = 0;
+        while(streaming && ret == 0){
             outputVideoQ.pop(sharedFrame);
-            avcodec_send_frame();
+            int got_packet = 0;
+            AVPacket pkt = {0};
+            av_init_packet(&pkt);
+            ret = avcodec_encode_video2(encoder_ctx, &pkt, sharedFrame->frame, &got_packet);
+            if(ret < 0) {
+                fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+                continue;
+            }
+            if(got_packet) {
+                for(auto& of : outputs){
+                    if(of.second && of.second->valid)
+                        ret = write_frame(of.second->fmt_ctx, &encoder_ctx->time_base, &of.second->video_st, &pkt);
+                }
+            } 
+                
         }
 
     }
