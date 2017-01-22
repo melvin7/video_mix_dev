@@ -26,68 +26,86 @@ BroadcastingStation::~BroadcastingStation()
     //delete ouput;
 }
 
-//int BroadcastingStation::openOutput(char* filename)
-//{
-//    output = new OutputFile(filename);
-//    return open_output_file(output);
-//}
-
-void BroadcastingStation::addInputFile(char* filename, int sequence)
+void BroadcastingStation::openInputFile(int id)
 {
-    if(sequence >= 15 || sequence < 0){
-        printf("file sequence is invalid!\n");
+    if(inputs.find(id) == inputs.end()){
+        printf("not found the inputfile, id: %d\n", id);
         return;
     }
-    if(input[sequence] != NULL){
-        printf("sequence: %d is already exit!\n", sequence);
-        return;
-    }
-    input[sequence] = new InputFile(filename);
-    layout.sequence[sequence] = sequence;
-    input[sequence]->layoutConfig = layout.overlayMap[sequence];
-    //num++ must be the last step as the other thread may read it
-    layout.num++;
-}
-
-void BroadcastingStation::openInputFile(int sequence)
-{
-    if(sequence >= 15 || sequence < 0){
-        printf("file sequence is invalid!\n");
-        return;
-    }
-    if(input[sequence] != NULL){
-        open_input_file(input[sequence]);
+    //FIXME: add init layout info
+    if(inputs[id].second != NULL){
+        //may be add feature about media source distinguished
+        open_input_file(input[id].second);
         //start decode thread
-        input[sequence]->decodeThread = new std::thread(decode_thread, input[sequence], this);
+        input[id].second->decodeThread = new std::thread(decode_thread, input[id].second, this);
     }
 }
 
-void BroadcastingStation::deleteInputFile(int sequence)
+void BroadcastingStation::addInputFile(char* filename, int id)
 {
-    //FIXME: add mutex or send event
-    //num-- should be the first step because the other thread use it
-    layout.num--;
-    if(sequence >= 15 || sequence < 0){
-        printf("file sequence is invalid!\n");
+    //create file and send add request
+    InputFile* oldFile = NULL;
+    if(inputs.find(id) != inputs.end()){
+        oldFile = inputs[id];
+    }
+    InputFile* file = new InputFile(filename);
+    Event event;
+    event.type = EVENT_ADD_INPUTFILE;
+    event.data = file;
+    reconfigReq = true;
+    while(oldFile && reconfigReq = true){
+        av_usleep(10000);
+    }
+    if(oldFile != NULL){
+        if(oldFile->decodeThread != NULL){
+            oldFile->abortRequest = true;
+            oldFile->decodeThread->join();
+        }
+        delete oldFile;
+    }
+    return;
+}
+
+void BroadcastingStation::deleteInputFile(int id)
+{
+    if(inputs.find(id) == input.end()){
+        printf("file id: %d was not found!\n", id);
         return;
     }
-    if(input[sequence] != NULL){
-        if(input[sequence]->decodeThread != NULL){
-            input[sequence]->abortRequest = true;
-            input[sequence]->decodeThread->join();
-        }
-        delete input[sequence];
-        input[sequence] = NULL;
+    InputFile* file = inputs[id].second;
+    configEvent.type = EVENT_ADD_INPUTFILE;
+    configEvent.data = &id;
+    reconfigReq = true;
+    //
+    while(reconfigReq == true){
+        av_usleep(10000);
     }
-
+    //remove done, stop decode thread and delete the file
+    if(file != NULL){
+        if(file->decodeThread != NULL){
+            file->abortRequest = true;
+            file->decodeThread->join();
+        }
+        delete file;
+    }
 }
 
-void BroadcastingStation::reconfig()
+void BroadcastingStation::reconfig(Event configEvent)
 {
-    //update layout
-
-    //then set reconfigReq, avoid mutex
-    reconfigReq = true;
+    switch (configEvent.type) {
+        case EVENT_ADD_INPUTFILE:
+            inputs =
+            inputs[id] = config
+            break;
+        case EVENT_DELETE_INPUTFILE:
+        //remove the file from inputs map
+            inputs.erase(*(int*)configEvent.data);
+            break;
+        case EVENT_CONSTRUCT_FILTER:
+            break;
+        default:
+            break;
+    }
 }
 
 int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index)
@@ -154,6 +172,7 @@ AVFrame* BroadcastingStation::mixVideoStream()
         //push and pop
         int index = layout.sequence[i];
         std::shared_ptr<Frame> sharedFrame;
+        //get picture by pts and drop the picture expired, make video queue fresh
         if(!input[index] || !getPicture(input[index], sharedFrame))
             continue;
         //overlayPicture should not failed, but we will take care of it
@@ -290,7 +309,7 @@ void BroadcastingStation::streamingOut()
         //write packet, use codec
         std::shared_ptr<Frame> sharedFrame;
         int ret = 0;
-        while(streaming && ret == 0){
+        while(streaming && outputs.size() > 0 && ret == 0){
             outputVideoQ.pop(sharedFrame);
             int got_packet = 0;
             AVPacket pkt = {0};
@@ -306,8 +325,6 @@ void BroadcastingStation::streamingOut()
                         ret = write_frame(of.second->fmt_ctx, &encoder_ctx->time_base, &of.second->video_st, &pkt);
                 }
             } 
-                
         }
-
     }
 }

@@ -17,7 +17,7 @@
 
 7. json string parser and overlay config
 
-8. text and picture overlay support
+8. text and picture overlay support interface
 
 9. audio mix and audio output
 

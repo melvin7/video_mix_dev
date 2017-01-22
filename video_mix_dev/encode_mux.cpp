@@ -48,7 +48,8 @@ int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, OutputStr
     pkt->stream_index = os->st->index;
     /* Write the compressed frame to the media file. */
     log_packet(fmt_ctx, pkt);
-    return av_interleaved_write_frame(fmt_ctx, pkt);
+    //return av_interleaved_write_frame(fmt_ctx, pkt);
+    return av_write_frame(fmt_ctx, pkt);
 }
 /* Add an output stream. */
 static void add_stream(OutputStream *ost, AVFormatContext *oc,
@@ -119,7 +120,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
         ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
         c->time_base       = ost->st->time_base;
 
-        c->gop_size      = 12; /* emit one intra frame every twelve frames at most */
+        c->gop_size      = 3; /* emit one intra frame every twelve frames at most */
         c->pix_fmt       = STREAM_PIX_FMT;
         if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
             /* just for testing, we also add B-frames */

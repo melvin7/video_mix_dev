@@ -34,6 +34,12 @@ typedef struct Decoder {
 }Decoder;
 
 
+struct LayoutConfig{
+    OverlayConfig overlayConf;
+    std::vector<OverlayBox> filterList; //filter list for input stream
+    int orderNum;
+};
+
 class InputFile{
 public:
     InputFile(char* fname):filename(fname), fmt_ctx(NULL), video_dec_ctx(NULL),
@@ -52,7 +58,7 @@ public:
     AVCodecContext* video_dec_ctx;
     int video_stream_index;
     SafeQueue<std::shared_ptr<Frame>, 100> videoFrameQ;
-    OverlayConfig layoutConfig;
+    LayoutConfig layoutConf;
     AVRational video_time_base;
     FrameArgs fa;
 

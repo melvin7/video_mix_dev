@@ -119,7 +119,7 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
     while(!is->abortRequest){
         //init a decoder
         if(!is->valid){
-            av_usleep(100000);
+            av_usleep(1000000);
             is->valid = (open_input_file(is) == 0 ? true:false);
             continue;
         }
@@ -148,27 +148,3 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
         }
      }
 }
-
-//bool InputFile::getPicture(std::shared_ptr<Frame>& pic, AVRational frameRate)
-//{
-//    if(videoFrameQ.size() <= 0){
-//        return false;
-//    }
-//    int64_t pts = start_pts + av_rescale_q(frame_num, frameRate, video_time_base);
-//    //keep the last frame
-//    while(1){
-//        if(videoFrameQ.size() == 1){
-//            pic = videoFrameQ.front();
-//            break;
-//        }
-//        std::shared_ptr<Frame> sharedFrame;
-//        if(videoFrameQ.front()->frame->pts > pts){
-//            pic = videoFrameQ.front();
-//            break;
-//        }else{
-//            videoFrameQ.pop(sharedFrame);
-//        }
-//    }
-//    frame_num++;
-//    return true;
-//}

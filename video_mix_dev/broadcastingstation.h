@@ -2,7 +2,7 @@
 #define BROADCASTINGSTATION_H
 
 #include <vector>
-#include <unordered_map>
+#include <map>
 
 #include "safequeue.h"
 #include "util.h"
@@ -18,22 +18,26 @@ public:
         Height = 720,
         MaxInput = 16
     };
-    struct Layout{
-        OverlayBox filterBox[MaxInput];
-        OverlayConfig overlayMap[MaxInput];
-        int sequence[MaxInput];
-        int num;
-        Layout():num(0){}
+    enum EVENT_TYPE{
+        EVENT_ADD_INPUTFILE,        //data type: inputfile* which was created
+        EVENT_DELETE_INPUTFILE,     //data type: int inputfile id
+        EVENT_CONSTRUCT_FILTER      //data type: layout*
     };
-
+    //c style event
+    struct Event{
+        enum EVENT_TYPE type;
+        void* data;
+    };
     //interface for event request
-    void addInputFile(char* filename, int sequence);
-    void openInputFile(int sequence);
-    void deleteInputFile(int sequence);
+    //there is no mutex in these interfaces, so call them in same thread;
+    void addInputFile(char* filename, int id);
+    void openInputFile(int id);
+    void deleteInputFile(int id);
     void addOutputFile(char* filename, int index);
     void deleteOutputFile(int index);
     void startStreaming();
     void stopStreaming();
+    void overlayConfigRequest();
 
     //thread
     void reapFrames();
@@ -44,22 +48,26 @@ public:
     int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index);
     bool getPicture(InputFile* is, std::shared_ptr<Frame>& pic);
 
-    int abortRequest;
     //FIXME: should be private, for test
     Layout layout;
     //output
     AVRational outputFrameRate;
-    std::unordered_map<int, OutputFile*> outputs;
+    std::map<int, OutputFile*> outputs;
     //int openOutput(char* filename);
     SafeQueue<std::shared_ptr<Frame>, 50> outputVideoQ;
     int outputFrameNum;
     int64_t start_time;
 private:
-    InputFile* input[MaxInput];
+    //InputFile* input[MaxInput];
+    std::map<int, InputFile*> inputs;
+
+    Event configEvent;
+
     //may be a event with config info
     bool reconfigReq;
     AVFrame* canvas;
     bool streaming;
+    int abortRequest;
 };
 
 #endif // BroadcastingStation_H

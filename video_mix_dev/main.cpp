@@ -38,22 +38,16 @@ int main(int argc, char** argv)
     avfilter_register_all();
     avformat_network_init();
     g_start_time = av_gettime_relative();
-  //  OutputFile of(argv[1]);
-  //  if(open_output_file(&of) != 0)
-    //    return -1;
     //1 create BroadcastingStation
     BroadcastingStation* s = new BroadcastingStation();
-    //2.start streaming thread
 
     //4.
     s->addOutputFile(argv[1], 0);
     s->startStreaming();
     std::thread reapThread(std::mem_fn(&BroadcastingStation::reapFrames),s);
-    std::thread outputThread(std::mem_fn(&BroadcastingStation::streamingOut), s);
 
-    //manage the BroadcastingStation accordding to event
     //s->addInputFile("rtmp://live.mudu.tv/watch/134w50", 0);
-    s->addInputFile("/home/huheng/tooyoung.mp4", 0);
+    s->addInputFile("rtmp://live.mudu.tv/watch/8ong6e", 0);
     s->layout.overlayMap[0].overlay_w = 320;
     s->layout.overlayMap[0].overlay_h = 240;
     s->openInputFile(0);
@@ -63,22 +57,22 @@ int main(int argc, char** argv)
     s->openInputFile(1);
     //
     //s->addInputFile("/home/huheng/Videos/samplemedia/SampleVideo_1280x720_1mb.mp4", 2);
-    s->addInputFile("out.mp4", 2);
+    s->addInputFile("a.mp4", 2);
     s->layout.overlayMap[2] = {1.0, 320, 180, 200, 200};
     s->openInputFile(2);
 
-    //
+    std::thread outputThread(std::mem_fn(&BroadcastingStation::streamingOut), s);
+    //manage the BroadcastingStation accordding to event
     int tt = 0;
     while(1){
         av_usleep(1000000);
         s->layout.overlayMap[0] = {0.5,320,240,0,(tt) % 500};
         tt += 100;
     }
-    //thread join
 
+    //thread join
     outputThread.join();
     reapThread.join();
     delete s;
     return 0;
 }
-
