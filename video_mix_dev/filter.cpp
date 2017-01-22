@@ -2,6 +2,11 @@
 #include "demux_decode.h"
 #include <string.h>
 
+void OverlayBox::setOverlayConfig(OverlayConfig& c)
+{
+    conf = c;
+}
+
 void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
 {
     int ret = 0;

@@ -21,10 +21,18 @@ typedef struct OverlayConfig{
     int overlay_h;
     int offset_x;
     int offset_y;
+    //TODO: add a void* config data
     OverlayConfig():opacity(1.0),overlay_w(1280),overlay_h(720),offset_x(0),offset_y(0){}
     OverlayConfig(double o, int ow, int oh, int ox, int oy):
         opacity(o), overlay_w(ow), overlay_h(oh), offset_x(ox), offset_y(oy)
     {}
+    OverlayConfig(OverlayConfig& c){
+        opacity = c.opacity;
+        overlay_w = c.overlay_w;
+        overlay_h = c.overlay_h;
+        offset_x = c.offset_x;
+        offset_y = c.offset_y;
+    }
 }OverlayConfig;
 
 //a filter box has an input pad named "in" and an output pad named "out".
@@ -45,16 +53,18 @@ public:
 
 
     OverlayBox():
+        valid(false),
         filter_graph(NULL),
         buffersrc_ctx_main(NULL),
         buffersrc_ctx_overlayed(NULL),
         buffersink_ctx(NULL),
         overlay_type(NB_OVERLAY),
-        valid(false),
         desc(NULL){}
+        
     ~OverlayBox(){
         avfilter_graph_free(&filter_graph);
     }
+    void setOverlayConfig(OverlayConfig& c);
     void config(OverlayConfig c, OverlayType t, void* opaque);
     bool push_main_frame(AVFrame* );
     bool push_overlayed_frame(AVFrame*);

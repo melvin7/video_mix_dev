@@ -16,14 +16,14 @@ BroadcastingStation::BroadcastingStation():
 
 BroadcastingStation::~BroadcastingStation()
 {
-    for(int i=1; i<layout.num; ++i)
-        if(input[i] != NULL)
-            delete input[i];
+    for(auto& input : inputs)
+        if(input.second)
+            delete input.second;
+    for(auto& output : outputs)
+        if(output.second)
+            delete output.second;
     av_frame_unref(canvas);
     av_frame_free(&canvas);
-    //av_frame_unref(outputFrame);
-    //av_frame_free(&outputFrame);
-    //delete ouput;
 }
 
 void BroadcastingStation::openInputFile(int id)
@@ -35,9 +35,9 @@ void BroadcastingStation::openInputFile(int id)
     //FIXME: add init layout info
     if(inputs[id].second != NULL){
         //may be add feature about media source distinguished
-        open_input_file(input[id].second);
+        open_input_file(inputs[id].second);
         //start decode thread
-        input[id].second->decodeThread = new std::thread(decode_thread, input[id].second, this);
+        inputs[id].second->decodeThread = new std::thread(decode_thread, inputs[id].second, this);
     }
 }
 
@@ -53,7 +53,7 @@ void BroadcastingStation::addInputFile(char* filename, int id)
     event.type = EVENT_ADD_INPUTFILE;
     event.data = file;
     reconfigReq = true;
-    while(oldFile && reconfigReq = true){
+    while(oldFile && reconfigReq == true){
         av_usleep(10000);
     }
     if(oldFile != NULL){
@@ -68,7 +68,7 @@ void BroadcastingStation::addInputFile(char* filename, int id)
 
 void BroadcastingStation::deleteInputFile(int id)
 {
-    if(inputs.find(id) == input.end()){
+    if(inputs.find(id) == inputs.end()){
         printf("file id: %d was not found!\n", id);
         return;
     }

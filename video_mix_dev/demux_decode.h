@@ -9,6 +9,7 @@ extern "C"{
 #include "libavutil/time.h"
 }
 #include <string>
+#include <map>
 #include "filter.h"
 #include "safequeue.h"
 #include "util.h"
@@ -33,10 +34,9 @@ typedef struct Decoder {
     }
 }Decoder;
 
-
 struct LayoutConfig{
     OverlayConfig overlayConf;
-    std::vector<OverlayBox> filterList; //filter list for input stream
+    std::map<int, OverlayBox> filterList; //filter list for input stream
     int orderNum;
 };
 
@@ -49,8 +49,6 @@ public:
         avcodec_close(video_dec_ctx);
         avformat_close_input(&fmt_ctx);
     }
-    //bool getPicture(std::shared_ptr<Frame>& sharedFrame, AVRational frameRate);
-    //video state, like index and position in the pad
     //input filename
     std::string filename;
     AVFormatContext* fmt_ctx;
@@ -80,6 +78,7 @@ public:
     open input file
 */
 class BroadcastingStation;
+
 int open_input_file(InputFile* is);
 int decoder_decode_frame(Decoder *d, AVFrame *frame);
 void decode_thread(InputFile* is, BroadcastingStation* bs);
