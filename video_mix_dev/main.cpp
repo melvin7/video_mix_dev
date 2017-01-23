@@ -43,30 +43,34 @@ int main(int argc, char** argv)
 
     //4.
     s->addOutputFile(argv[1], 0);
-    s->startStreaming();
     std::thread reapThread(std::mem_fn(&BroadcastingStation::reapFrames),s);
 
     //s->addInputFile("rtmp://live.mudu.tv/watch/134w50", 0);
     s->addInputFile("rtmp://live.mudu.tv/watch/8ong6e", 0);
-    s->layout.overlayMap[0].overlay_w = 320;
-    s->layout.overlayMap[0].overlay_h = 240;
+    s->inputs[0]->layoutConf.overlayConf = {0.5, 320, 240, 0, 0};
     s->openInputFile(0);
     //s->addInputFile("rtmp://live.mudu.tv/watch/134w50",1);
     s->addInputFile("a.mp4", 1);
-    s->layout.overlayMap[1] = {1.0, 640, 360, 400, 400};
+    s->inputs[1]->layoutConf.overlayConf = {0.5, 400, 400, 200, 200};
     s->openInputFile(1);
     //
-    //s->addInputFile("/home/huheng/Videos/samplemedia/SampleVideo_1280x720_1mb.mp4", 2);
-    s->addInputFile("a.mp4", 2);
-    s->layout.overlayMap[2] = {1.0, 320, 180, 200, 200};
+    s->addInputFile("/home/huheng/Videos/samplemedia/SampleVideo_1280x720_1mb.mp4", 2);
+    //s->addInputFile("a.mp4", 2);
+    s->inputs[2]->layoutConf.overlayConf = {0.9, 600, 400, 600, 0};
     s->openInputFile(2);
 
     std::thread outputThread(std::mem_fn(&BroadcastingStation::streamingOut), s);
+    s->startStreaming();
+
     //manage the BroadcastingStation accordding to event
     int tt = 0;
     while(1){
         av_usleep(1000000);
-        s->layout.overlayMap[0] = {0.5,320,240,0,(tt) % 500};
+        //config
+        OverlayConfig c = {(tt%1000)/1000.0, 100 + tt%500,100+tt%300,tt%1000,tt%700};
+        s->setOverlayConfig(c, 0);
+        OverlayConfig c2 = {0.9, 600,400, 600, tt%600};
+        s->setOverlayConfig(c2, 2);
         tt += 100;
     }
 

@@ -18,16 +18,7 @@ public:
         Height = 720,
         MaxInput = 16
     };
-    enum EVENT_TYPE{
-        EVENT_ADD_INPUTFILE,        //data type: inputfile* which was created
-        EVENT_DELETE_INPUTFILE,     //data type: int inputfile id
-        EVENT_CONSTRUCT_FILTER      //data type: layout*
-    };
-    //c style event
-    struct Event{
-        enum EVENT_TYPE type;
-        void* data;
-    };
+
     //interface for event request
     //there is no mutex in these interfaces, so call them in same thread;
     void addInputFile(char* filename, int id);
@@ -38,6 +29,7 @@ public:
     void startStreaming();
     void stopStreaming();
     void overlayConfigRequest();
+    void setOverlayConfig(OverlayConfig& c, int id);
 
     //thread
     void reapFrames();
@@ -45,11 +37,10 @@ public:
 
     void reconfig();
     AVFrame* mixVideoStream();
-    int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index);
+    int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, InputFile* file);
     bool getPicture(InputFile* is, std::shared_ptr<Frame>& pic);
 
     //FIXME: should be private, for test
-    Layout layout;
     //output
     AVRational outputFrameRate;
     std::map<int, OutputFile*> outputs;
@@ -57,11 +48,11 @@ public:
     SafeQueue<std::shared_ptr<Frame>, 50> outputVideoQ;
     int outputFrameNum;
     int64_t start_time;
+    //input
+    std::map<int, InputFile*> inputs;
 private:
     //InputFile* input[MaxInput];
-    std::map<int, InputFile*> inputs;
-
-    Event configEvent;
+    std::mutex inputMutex;
 
     //may be a event with config info
     bool reconfigReq;

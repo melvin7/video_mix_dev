@@ -11,6 +11,7 @@ void OverlayBox::config(OverlayConfig c, OverlayType t, void* opaque)
 {
     int ret = 0;
     valid = false;
+    conf = c;
     char desc[512] = {0};
     enum AVPixelFormat pix_fmts[] = { AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE };
     if(opaque == NULL)

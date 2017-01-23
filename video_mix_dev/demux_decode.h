@@ -35,9 +35,10 @@ typedef struct Decoder {
 }Decoder;
 
 struct LayoutConfig{
+    OverlayBox box;
     OverlayConfig overlayConf;
-    std::map<int, OverlayBox> filterList; //filter list for input stream
     int orderNum;
+    //std::map<int, OverlayBox> filterList; //filter list for input stream
 };
 
 class InputFile{

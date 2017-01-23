@@ -33,6 +33,13 @@ typedef struct OverlayConfig{
         offset_x = c.offset_x;
         offset_y = c.offset_y;
     }
+    bool operator==(const OverlayConfig& c){
+        return opacity == c.opacity &&
+                overlay_h == c.overlay_h &&
+                overlay_w == c.overlay_w &&
+                offset_x == c.offset_x &&
+                offset_y == c.offset_y;
+    }
 }OverlayConfig;
 
 //a filter box has an input pad named "in" and an output pad named "out".
@@ -70,6 +77,7 @@ public:
     bool push_overlayed_frame(AVFrame*);
     int pop_frame(AVFrame*);
     bool valid;
+    OverlayConfig conf;
 private:
     AVFilterGraph* filter_graph;
     AVFilterContext* buffersrc_ctx_main;
@@ -77,7 +85,6 @@ private:
     AVFilterContext* buffersink_ctx;
     OverlayType overlay_type;
     char* desc;
-    OverlayConfig conf;
 };
 
 #endif // FILTER_H

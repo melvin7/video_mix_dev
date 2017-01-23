@@ -99,6 +99,7 @@ int open_input_file(InputFile* is)
         av_log(NULL, AV_LOG_ERROR, "Cannot find a video stream in the input file\n");
         return ret;
     }
+
     is->video_stream_index = ret;
     is->video_dec_ctx = is->fmt_ctx->streams[is->video_stream_index]->codec;
     av_opt_set_int(is->video_dec_ctx, "refcounted_frames", 1, 0);

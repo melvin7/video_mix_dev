@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include "demux_decode.h"
 #include "encode_mux.h"
+#include <vector>
+#include <algorithm>
 
 BroadcastingStation::BroadcastingStation():
     reconfigReq(false),
@@ -33,29 +35,26 @@ void BroadcastingStation::openInputFile(int id)
         return;
     }
     //FIXME: add init layout info
-    if(inputs[id].second != NULL){
+    if(inputs[id] != NULL){
         //may be add feature about media source distinguished
-        open_input_file(inputs[id].second);
+        open_input_file(inputs[id]);
         //start decode thread
-        inputs[id].second->decodeThread = new std::thread(decode_thread, inputs[id].second, this);
+        inputs[id]->decodeThread = new std::thread(decode_thread, inputs[id], this);
     }
 }
 
 void BroadcastingStation::addInputFile(char* filename, int id)
 {
-    //create file and send add request
     InputFile* oldFile = NULL;
     if(inputs.find(id) != inputs.end()){
         oldFile = inputs[id];
     }
     InputFile* file = new InputFile(filename);
-    Event event;
-    event.type = EVENT_ADD_INPUTFILE;
-    event.data = file;
-    reconfigReq = true;
-    while(oldFile && reconfigReq == true){
-        av_usleep(10000);
-    }
+    //add new file to inputs
+    inputMutex.lock();
+    inputs[id] = file;
+    inputMutex.unlock();
+    //delete old file
     if(oldFile != NULL){
         if(oldFile->decodeThread != NULL){
             oldFile->abortRequest = true;
@@ -72,14 +71,12 @@ void BroadcastingStation::deleteInputFile(int id)
         printf("file id: %d was not found!\n", id);
         return;
     }
-    InputFile* file = inputs[id].second;
-    configEvent.type = EVENT_ADD_INPUTFILE;
-    configEvent.data = &id;
-    reconfigReq = true;
-    //
-    while(reconfigReq == true){
-        av_usleep(10000);
-    }
+    InputFile* file = inputs[id];
+    //delete the file
+    inputMutex.lock();
+    inputs.erase(id);
+    inputMutex.unlock();
+
     //remove done, stop decode thread and delete the file
     if(file != NULL){
         if(file->decodeThread != NULL){
@@ -90,49 +87,29 @@ void BroadcastingStation::deleteInputFile(int id)
     }
 }
 
-void BroadcastingStation::reconfig(Event configEvent)
-{
-    switch (configEvent.type) {
-        case EVENT_ADD_INPUTFILE:
-            inputs =
-            inputs[id] = config
-            break;
-        case EVENT_DELETE_INPUTFILE:
-        //remove the file from inputs map
-            inputs.erase(*(int*)configEvent.data);
-            break;
-        case EVENT_CONSTRUCT_FILTER:
-            break;
-        default:
-            break;
-    }
-}
-
-int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, int index)
+int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, InputFile* file)
 {
     //main frame is YUV420P
     //top may be YUVA420P added alpha
-    //FIXME reconfig logic
-    if(!layout.filterBox[index].valid ||
-            top->format != input[index]->fa.fmt ||
-            top->width  != input[index]->fa.width ||
-            top->height != input[index]->fa.height ||
-            layout.overlayMap[index].offset_y != input[index]->layoutConfig.offset_y){
+    if(!file->layoutConf.box.valid ||
+            top->format != file->fa.fmt ||
+            top->width  != file->fa.width ||
+            top->height != file->fa.height ||
+            !(file->layoutConf.box.conf == file->layoutConf.overlayConf)){
         //reconfig filterbox
         FrameArgs frameargs = {outputFrameRate, top->format, top->width, top->height};
-        layout.filterBox[index].config(layout.overlayMap[index],OverlayBox::STREAM_OVERLAY, &frameargs);
-        input[index]->fa = frameargs;
-        input[index]->layoutConfig.offset_y = layout.overlayMap[index].offset_y;
+        file->layoutConf.box.config(file->layoutConf.overlayConf, OverlayBox::STREAM_OVERLAY, &frameargs);
+        file->fa = frameargs;
     }
-    if(!layout.filterBox[index].valid){
+    if(!file->layoutConf.box.valid){
         //memory concat
         //concatPicture();
         printf("config overlaybox failed!\n");
         return 1;
     }
-    layout.filterBox[index].push_main_frame(main);
-    layout.filterBox[index].push_overlayed_frame(top);
-    layout.filterBox[index].pop_frame(outputFrame);
+    file->layoutConf.box.push_main_frame(main);
+    file->layoutConf.box.push_overlayed_frame(top);
+    file->layoutConf.box.pop_frame(outputFrame);
     return 0;
 }
 
@@ -142,6 +119,7 @@ bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
     if(is->videoFrameQ.size() <= 0){
         return false;
     }
+    //
     int64_t need_pts = is->start_pts + av_rescale_q(outputFrameNum - is->start_frame_num, outputFrameRate, is->video_time_base);
     //keep the last frame
     while(1){
@@ -165,32 +143,42 @@ AVFrame* BroadcastingStation::mixVideoStream()
     bool getflags = false;
     AVFrame* main = av_frame_clone(canvas);
     AVFrame* outputFrame = av_frame_alloc();
-    //may be add framerate control
+
+    //benchmark for video mixing
     int64_t time_start = av_gettime_relative();
-    for(int i = 0; i < layout.num; ++i) {
+    std::vector<InputFile*> inputSequence;
+    inputMutex.lock();
+    for(auto& f : inputs){
+        inputSequence.push_back(f.second);
+    }
+    std::sort(inputSequence.begin(), inputSequence.end(),
+         [](InputFile* a, InputFile*b){
+                return a && b && a->layoutConf.orderNum < b->layoutConf.orderNum;
+    });
+    for(auto file : inputSequence) {
         //get a frame from queue
         //push and pop
-        int index = layout.sequence[i];
         std::shared_ptr<Frame> sharedFrame;
         //get picture by pts and drop the picture expired, make video queue fresh
-        if(!input[index] || !getPicture(input[index], sharedFrame))
+        if(!file || !getPicture(file, sharedFrame))
             continue;
         //overlayPicture should not failed, but we will take care of it
         getflags = true;
         //FIXME pts issue
         main->pts = sharedFrame->frame->pts = outputFrameNum;
         //av_frame_copy_props(main, sharedFrame->frame);
-        overlayPicture(main, sharedFrame->frame, outputFrame, index);
+        overlayPicture(main, sharedFrame->frame, outputFrame, file);
         av_frame_unref(main);
         av_frame_move_ref(main, outputFrame);
     }
+    inputMutex.unlock();
     av_frame_free(&outputFrame);
     int64_t time_end = av_gettime_relative();
-    //benchmark
     printf("huheng debug mix time: %lld\n", time_end - time_start);
-    //if there was no overlay pic, sleeping to avoid pushing too more canvas
+
+    //if there was no overlay picure, sleeping to avoid pushing too more pure canvas
     if(!getflags){
-        av_usleep(20000);
+        av_usleep(30000);
     }
     return main;
 }
@@ -248,6 +236,15 @@ void BroadcastingStation::deleteOutputFile(int index){
     if(outputs.find(index) == outputs.end())
         return;
     outputs.erase(index);
+}
+
+void BroadcastingStation::setOverlayConfig(OverlayConfig& c, int id)
+{
+    inputMutex.lock();
+    if(inputs[id]){
+        inputs[id]->layoutConf.overlayConf = c;
+    }
+    inputMutex.unlock();
 }
 
 void BroadcastingStation::startStreaming()
