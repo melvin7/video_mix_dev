@@ -110,6 +110,7 @@ int open_input_file(InputFile* is)
         return ret;
     }
     is->video_time_base = is->fmt_ctx->streams[is->video_stream_index]->time_base;
+    is->videoFrameQ.clear();
     is->valid = true;
     int64_t end_time = av_gettime_relative();
     printf("huheng bench open input time: %lld", end_time - start_time);

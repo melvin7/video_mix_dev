@@ -28,29 +28,19 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
            pkt->stream_index);
 }
 
-
 int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, OutputStream *os, AVPacket *pkt)
 {
     /* rescale output packet timestamp values from codec to stream timebase */
     av_packet_rescale_ts(pkt, *time_base, os->st->time_base);
-    //static int64_t begin_time = pkt->pts * (st->time_base.num * 1000) / st->time_base.den;
-    static int i = 0;
-
-
-//    int64_t timepass = av_gettime_relative() - start_time;
-//    //int64_t pkt_time = os->next_pts * ((*time_base).num * 1000) / (*time_base).den;
-//    int64_t pts = av_rescale(pkt->dts, 1000000 * (os->st->time_base.num), os->st->time_base.den);
-//    while(pts>timepass){
-//        av_usleep(20000);
-//        timepass += 20;
-//    }
-//    last_packet_duration += pkt->duration;
     pkt->stream_index = os->st->index;
+
     /* Write the compressed frame to the media file. */
     log_packet(fmt_ctx, pkt);
+
     //return av_interleaved_write_frame(fmt_ctx, pkt);
     return av_write_frame(fmt_ctx, pkt);
 }
+
 /* Add an output stream. */
 static void add_stream(OutputStream *ost, AVFormatContext *oc,
                        AVCodec **codec,

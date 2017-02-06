@@ -4,7 +4,9 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 DEFINES = __STDC_CONSTANT_MACROS
+
 INCLUDEPATH=/home/huheng/source/ffmpeg
+
 LIBS=-lavcodec -lavfilter -lavutil -lswresample \
 -lavformat -lswscale  -lavdevice -lpostproc -lpthread
 

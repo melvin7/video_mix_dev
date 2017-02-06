@@ -68,7 +68,8 @@ template<typename T, int MAXSIZE>
 void SafeQueue<T, MAXSIZE>::clear()
 {
     std::unique_lock<std::mutex> lock(qMutex);
-    q.swap(SafeQueue<T, MAXSIZE>());
+    std::queue<T> t;
+    q.swap(t);
 }
 
 template<typename T, int MAXSIZE>

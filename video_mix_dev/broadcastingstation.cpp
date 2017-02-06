@@ -11,9 +11,9 @@ BroadcastingStation::BroadcastingStation():
     abortRequest(false),
     streaming(false)
 {
-    canvas = alloc_picture(AV_PIX_FMT_YUV420P, 1280, 720);
+    canvas = alloc_picture(AV_PIX_FMT_YUV420P, Width, Height);
     outputFrameRate = {1,25};
-    fill_yuv_image(canvas, 0, 1280, 720);
+    fill_yuv_image(canvas, 0, Width, Height);
 }
 
 BroadcastingStation::~BroadcastingStation()

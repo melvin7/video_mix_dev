@@ -3,6 +3,7 @@
 #include <thread>
 #include <memory>
 
+#include <string.h>
 #include <stdio.h>
 
 #include "demux_decode.h"
@@ -10,9 +11,8 @@
 #include "safequeue.h"
 #include "filter.h"
 #include "broadcastingstation.h"
-#include <string.h>
 
-void concatyuv420P_test(AVFrame* dstFrame, AVFrame* overlayFrame)
+void concatyuv420P_test(AVFrame* dstFrame, AVFrame* overlayFrame, OverlayConfig& c)
 {
     //for test
     if(dstFrame->width != 2 * overlayFrame->width || dstFrame->height != 2 * overlayFrame->height){
@@ -47,7 +47,7 @@ int main(int argc, char** argv)
 
     //s->addInputFile("rtmp://live.mudu.tv/watch/134w50", 0);
     s->addInputFile("rtmp://live.mudu.tv/watch/8ong6e", 0);
-    s->inputs[0]->layoutConf.overlayConf = {0.5, 320, 240, 0, 0};
+    s->inputs[0]->layoutConf.overlayConf = {0.5, 480, 320, 0, 0};
     s->openInputFile(0);
     //s->addInputFile("rtmp://live.mudu.tv/watch/134w50",1);
     s->addInputFile("a.mp4", 1);
@@ -67,8 +67,10 @@ int main(int argc, char** argv)
     while(1){
         av_usleep(1000000);
         //config
+        //if(tt>1000)
+          //  continue;
         OverlayConfig c = {(tt%1000)/1000.0, 100 + tt%500,100+tt%300,tt%1000,tt%700};
-        s->setOverlayConfig(c, 0);
+        s->setOverlayConfig(c, 1);
         OverlayConfig c2 = {0.9, 600,400, 600, tt%600};
         s->setOverlayConfig(c2, 2);
         tt += 100;
