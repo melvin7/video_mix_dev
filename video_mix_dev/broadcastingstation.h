@@ -1,7 +1,6 @@
 #ifndef BROADCASTINGSTATION_H
 #define BROADCASTINGSTATION_H
 
-#include <vector>
 #include <map>
 
 #include "safequeue.h"

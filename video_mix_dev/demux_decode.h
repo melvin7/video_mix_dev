@@ -14,25 +14,27 @@ extern "C"{
 #include "safequeue.h"
 #include "util.h"
 
-struct OutputStream;
+#define FrameQueueSize 100
 
 //a video decoder decode the video stream in fmt
 typedef struct Decoder {
-    AVFormatContext* fmt;
     AVCodecContext* avctx;
-    AVPacket pkt;
-    AVPacket pkt_temp;
-    int video_stream_index; //stream index in fmt
-    int packet_pending;
-    int flushed;
+    int stream_index; //stream index in fmt
     int abort_request;
-    Decoder(AVFormatContext* avfmt, AVCodecContext* avcodec, int index):
-    fmt(avfmt), avctx(avcodec), video_stream_index(index),
-      packet_pending(0), flushed(0), abort_request(0){
-        av_init_packet(&pkt);
-        av_init_packet(&pkt_temp);
+    AVRational time_base;
+    SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> frameQueue;
+    Decoder():avctx(NULL),stream_index(-1),abort_request(false),time_base({1,1000}){}
+    Decoder(AVCodecContext* ctx, int index, AVRational tb){
+        avctx = ctx;
+        stream_index = index;
+        time_base = tb;
+    }
+    ~Decoder(){
+        avcodec_close(avctx);
     }
 }Decoder;
+
+
 
 struct LayoutConfig{
     OverlayBox box;
@@ -43,26 +45,24 @@ struct LayoutConfig{
 
 class InputFile{
 public:
-    InputFile(char* fname):filename(fname), fmt_ctx(NULL), video_dec_ctx(NULL),
-        video_stream_index(-1), valid(false), video_time_base({1,1000}),
+    InputFile(char* fname):filename(fname), fmt_ctx(NULL),
+        videoDecoder(NULL), audioDecoder(NULL),
+        valid(false), video_time_base({1,1000}),
         abortRequest(false),decodeThread(NULL){}
     ~InputFile(){
-        avcodec_close(video_dec_ctx);
         avformat_close_input(&fmt_ctx);
     }
     //input filename
     std::string filename;
     AVFormatContext* fmt_ctx;
     //video config
-    AVCodecContext* video_dec_ctx;
-    int video_stream_index;
-    SafeQueue<std::shared_ptr<Frame>, 100> videoFrameQ;
+    Decoder* videoDecoder;
+    Decoder* audioDecoder;
+
     LayoutConfig layoutConf;
     AVRational video_time_base;
     FrameArgs fa;
 
-    //audio config
-    SafeQueue<std::shared_ptr<Frame>, 100> audioFrameQ;
 
     //input stream is valid, false: not init, eof or error
     bool valid;
@@ -83,7 +83,6 @@ public:
 class BroadcastingStation;
 
 int open_input_file(InputFile* is);
-int decoder_decode_frame(Decoder *d, AVFrame *frame);
 void decode_thread(InputFile* is, BroadcastingStation* bs);
 
 #endif

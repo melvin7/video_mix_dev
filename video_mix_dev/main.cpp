@@ -40,7 +40,6 @@ int main(int argc, char** argv)
     g_start_time = av_gettime_relative();
     //1 create BroadcastingStation
     BroadcastingStation* s = new BroadcastingStation();
-
     //4.
     s->addOutputFile(argv[1], 0);
     std::thread reapThread(std::mem_fn(&BroadcastingStation::reapFrames),s);

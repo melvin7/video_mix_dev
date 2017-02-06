@@ -116,23 +116,23 @@ int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* ou
 //time relevant
 bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
 {
-    if(is->videoFrameQ.size() <= 0){
+    if(!is || !is->videoDecoder || is->videoDecoder->frameQueue.size() <= 0){
         return false;
     }
     //
-    int64_t need_pts = is->start_pts + av_rescale_q(outputFrameNum - is->start_frame_num, outputFrameRate, is->video_time_base);
+    int64_t need_pts = is->start_pts + av_rescale_q(outputFrameNum - is->start_frame_num, outputFrameRate, is->videoDecoder->time_base);
     //keep the last frame
     while(1){
-        if(is->videoFrameQ.size() == 1){
-            pic = is->videoFrameQ.front();
+        if(is->videoDecoder->frameQueue.size() == 1){
+            pic = is->videoDecoder->frameQueue.front();
             break;
         }
         std::shared_ptr<Frame> sharedFrame;
-        if(is->videoFrameQ.front()->frame->pts >= need_pts){
-            pic = is->videoFrameQ.front();
+        if(is->videoDecoder->frameQueue.front()->frame->pts >= need_pts){
+            pic = is->videoDecoder->frameQueue.front();
             break;
         }else{
-            is->videoFrameQ.pop(sharedFrame);
+            is->videoDecoder->frameQueue.pop(sharedFrame);
         }
     }
     return true;

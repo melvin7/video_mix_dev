@@ -5,69 +5,24 @@ extern "C" {
 #include "libavutil/mathematics.h"
 }
 
-int decoder_read_packet(Decoder *d, AVPacket* pkt){
-    if(d->flushed){
-        return d->flushed;
+Decoder* init_decoder(AVFormatContext* fmt_ctx, enum AVMediaType type)
+{
+    AVCodec* dec;
+    int ret = av_find_best_stream(fmt_ctx, type, -1, -1, &dec, 0);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Cannot find a video stream in the input file\n");
+        return NULL;
     }
-    int ret = av_read_frame(d->fmt, pkt);
-    if(ret < 0 && d->flushed == 0){
-        pkt->data = NULL;
-        pkt->size = 0;
-        d->flushed = ret;
+    int stream_index = ret;
+    AVCodecContext* dec_ctx = fmt_ctx->streams[stream_index]->codec;
+    av_opt_set_int(dec_ctx, "refcounted_frames", 1, 0);
+
+    if ((ret = avcodec_open2(dec_ctx, dec, NULL)) < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Cannot open decoder\n");
+        return NULL;
     }
-    return 0;
-}
-
-/*add by huheng*/
-int decoder_decode_frame(Decoder *d, AVFrame *frame) {
-    int got_frame = 0;
-
-    do {
-        int ret = -1;
-
-        if (d->abort_request)
-            return -1;
-
-        if (!d->packet_pending) {
-            AVPacket pkt;
-            ret = decoder_read_packet(d, &pkt);
-            if(ret < 0)
-                return -1;
-            if(pkt.data != NULL && pkt.stream_index != d->video_stream_index)
-                continue;
-            av_packet_unref(&d->pkt);
-            d->pkt_temp = d->pkt = pkt;
-            d->packet_pending = 1;
-        }
-
-        switch (d->avctx->codec_type) {
-            case AVMEDIA_TYPE_VIDEO:
-                ret = avcodec_decode_video2(d->avctx, frame, &got_frame, &d->pkt_temp);
-                break;
-            default:
-                break;
-        }
-
-        if (ret < 0) {
-            d->packet_pending = 0;
-        } else {
-            d->pkt_temp.dts =
-            d->pkt_temp.pts = AV_NOPTS_VALUE;
-            if (d->pkt_temp.data) {
-                d->pkt_temp.data += ret;
-                d->pkt_temp.size -= ret;
-                if (d->pkt_temp.size <= 0)
-                    d->packet_pending = 0;
-            } else {
-                if (!got_frame) {
-                    d->packet_pending = 0;
-                   // d->finished = d->pkt_serial;
-                }
-            }
-        }
-    } while (!got_frame);
-
-    return got_frame;
+    AVRational time_base = fmt_ctx->streams[stream_index]->time_base;
+    return new Decoder(dec_ctx, stream_index, time_base);
 }
 
 int open_input_file(InputFile* is)
@@ -75,10 +30,16 @@ int open_input_file(InputFile* is)
     //benchmark test
     int64_t start_time = av_gettime_relative();
     int ret;
-    AVCodec *dec;
     if(is == NULL)
         return -1;
-    avcodec_close(is->video_dec_ctx);
+    if(is->audioDecoder){
+        delete is->audioDecoder;
+        is->audioDecoder = NULL;
+    }
+    if(is->videoDecoder){
+        delete is->videoDecoder;
+        is->videoDecoder = NULL;
+    }
     avformat_close_input(&is->fmt_ctx);
     is->fmt_ctx = NULL;
     is->start_time = -1;
@@ -93,29 +54,40 @@ int open_input_file(InputFile* is)
         return ret;
     }
 
-    /* select the video stream */
-    ret = av_find_best_stream(is->fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &dec, 0);
-    if (ret < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot find a video stream in the input file\n");
-        return ret;
-    }
+    is->videoDecoder = init_decoder(is->fmt_ctx, AVMEDIA_TYPE_VIDEO);
+    is->audioDecoder = init_decoder(is->fmt_ctx, AVMEDIA_TYPE_AUDIO);
 
-    is->video_stream_index = ret;
-    is->video_dec_ctx = is->fmt_ctx->streams[is->video_stream_index]->codec;
-    av_opt_set_int(is->video_dec_ctx, "refcounted_frames", 1, 0);
-
-    /* init the video decoder */
-    if ((ret = avcodec_open2(is->video_dec_ctx, dec, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot open video decoder\n");
-        return ret;
-    }
-    is->video_time_base = is->fmt_ctx->streams[is->video_stream_index]->time_base;
-    is->videoFrameQ.clear();
-    is->valid = true;
+    if(is->videoDecoder || is->audioDecoder)
+        is->valid = true;
     int64_t end_time = av_gettime_relative();
     printf("huheng bench open input time: %lld", end_time - start_time);
     return 0;
 }
+
+int consume_packet(Decoder* d, AVPacket* pkt)
+{
+    int ret;
+    ret = avcodec_send_packet(d->avctx, pkt);
+    if(ret < 0){
+        printf("send packet failed: %d", ret);
+        return ret;
+    }
+    AVFrame* frame = av_frame_alloc();
+    while(1){
+        ret = avcodec_receive_frame(d->avctx, frame);
+        if(ret == 0){
+            //got frame and send to frame queue
+            auto sharedFrame = std::make_shared<Frame>();
+            av_frame_move_ref(sharedFrame->frame, frame);
+            d->frameQueue.push(sharedFrame);
+        }else{
+            break;
+        }
+    }
+    av_frame_free(&frame);
+    return 0;
+}
+
 
 void decode_thread(InputFile* is, BroadcastingStation* bs){
     while(!is->abortRequest){
@@ -125,28 +97,32 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
             is->valid = (open_input_file(is) == 0 ? true:false);
             continue;
         }
-        Decoder d(is->fmt_ctx,is->video_dec_ctx,is->video_stream_index);
+        bool flushed = false;
         while(!is->abortRequest && is->valid){
-            //Decoder d(is->fmt_ctx, is->video_dec_ctx, is->video_stream_index);
-            //AVFrame* frame = av_frame_alloc();
-            auto sharedFrame = std::make_shared<Frame>();
-            AVFrame* frame = sharedFrame->frame;
-            int got_frame = decoder_decode_frame(&d, frame);
-            if(got_frame < 0){
+            if(flushed){
+                //eof
                 is->valid = false;
                 continue;
             }
-            if(got_frame){
-                auto qFrame = std::make_shared<Frame>();
-                frame->pts = av_frame_get_best_effort_timestamp(frame);
-                if(is->start_pts == -1){
-                    is->start_time = av_gettime_relative();
-                    is->start_pts = frame->pts;
-                    is->start_frame_num = bs->outputFrameNum + 1;
+            AVPacket pkt;
+            av_init_packet(&pkt);
+            int ret = av_read_frame(is->fmt_ctx, &pkt);
+            if (ret < 0 && !flushed){
+                //send flush packet to audio and video decoder
+                AVPacket flush_pkt;
+                flush_pkt.data = NULL;
+                flush_pkt.size = 0;
+                consume_packet(is->videoDecoder, &flush_pkt);
+                consume_packet(is->audioDecoder, &flush_pkt);
+                flushed = true;
+            } else if(ret == 0){
+                if(pkt.stream_index == is->videoDecoder->stream_index){
+                    consume_packet(is->videoDecoder, &pkt);
+                }else if(pkt.stream_index == is->audioDecoder->stream_index){
+                    consume_packet(is->audioDecoder, &pkt);
                 }
-                av_frame_move_ref(qFrame->frame, frame);
-                is->videoFrameQ.push(qFrame);
             }
+            av_packet_unref(&pkt);
         }
      }
 }
