@@ -45,14 +45,14 @@ int main(int argc, char** argv)
     std::thread reapThread(std::mem_fn(&BroadcastingStation::reapFrames),s);
 
     //s->addInputFile("rtmp://live.mudu.tv/watch/134w50", 0);
-    s->addInputFile("rtmp://live.mudu.tv/watch/8ong6e", 0);
-    s->inputs[0]->layoutConf.overlayConf = {0.5, 480, 320, 0, 0};
-    s->openInputFile(0);
-    //s->addInputFile("rtmp://live.mudu.tv/watch/134w50",1);
-    s->addInputFile("a.mp4", 1);
-    s->inputs[1]->layoutConf.overlayConf = {0.5, 400, 400, 200, 200};
-    s->openInputFile(1);
-    //
+//    s->addInputFile("rtmp://live.mudu.tv/watch/8ong6e", 0);
+//    s->inputs[0]->layoutConf.overlayConf = {0.5, 480, 320, 0, 0};
+//    s->openInputFile(0);
+//    //s->addInputFile("rtmp://live.mudu.tv/watch/134w50",1);
+//    s->addInputFile("a.mp4", 1);
+//    s->inputs[1]->layoutConf.overlayConf = {0.5, 400, 400, 200, 200};
+//    s->openInputFile(1);
+//    //
     s->addInputFile("/home/huheng/Videos/samplemedia/westworld10.mp4", 2);
     //s->addInputFile("a.mp4", 2);
     s->inputs[2]->layoutConf.overlayConf = {0.9, 600, 400, 600, 0};

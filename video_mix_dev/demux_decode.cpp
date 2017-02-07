@@ -78,10 +78,15 @@ int consume_packet(Decoder* d, AVPacket* pkt)
         if(ret == 0){
             //got frame and send to frame queue
             auto sharedFrame = std::make_shared<Frame>();
+            frame->pts = av_frame_get_best_effort_timestamp(frame);
+            int64_t framepts = frame->pts;
+            printf("framepts:%lld\n", frame->pts);
             av_frame_move_ref(sharedFrame->frame, frame);
             int64_t old_delta= sharedFrame->frame->pts - d->start_pts;
+            //rescale 100 times
             int64_t new_delta = av_rescale_q(old_delta, d->time_base, d->dst_time_base);
-            sharedFrame->frame->pts = new_delta + d->dst_start_pts;
+            int64_t new_pts = new_delta + d->dst_start_pts;
+            sharedFrame->frame->pts = new_pts;
             d->frameQueue.push(sharedFrame);
         }else{
             break;
@@ -119,7 +124,7 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
                 flushed = true;
             } else if(ret == 0){
                 if(pkt.stream_index == is->videoDecoder->stream_index){
-                    if(is->videoDecoder->start_pts = -1){
+                    if(is->videoDecoder->start_pts == -1){
                         is->videoDecoder->start_pts = pkt.pts;
                         is->videoDecoder->dst_start_pts = bs->outputFrameNum;
                         is->videoDecoder->dst_time_base = bs->outputFrameRate;
