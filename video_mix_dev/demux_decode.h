@@ -21,13 +21,21 @@ typedef struct Decoder {
     AVCodecContext* avctx;
     int stream_index; //stream index in fmt
     int abort_request;
+
+    int64_t start_pts;
+    int64_t dst_start_pts; //in dst_time_base
+    AVRational dst_time_base;
+
     AVRational time_base;
     SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> frameQueue;
-    Decoder():avctx(NULL),stream_index(-1),abort_request(false),time_base({1,1000}){}
+    Decoder():avctx(NULL),stream_index(-1),
+        start_pts(-1),
+        abort_request(false),time_base({1,1000}){}
     Decoder(AVCodecContext* ctx, int index, AVRational tb){
         avctx = ctx;
         stream_index = index;
         time_base = tb;
+        start_pts = -1;
     }
     ~Decoder(){
         avcodec_close(avctx);
@@ -47,6 +55,7 @@ class InputFile{
 public:
     InputFile(char* fname):filename(fname), fmt_ctx(NULL),
         videoDecoder(NULL), audioDecoder(NULL),
+        video_start_pts(-1), audio_start_pts(-1),
         valid(false), video_time_base({1,1000}),
         abortRequest(false),decodeThread(NULL){}
     ~InputFile(){
@@ -70,7 +79,8 @@ public:
     std::thread* decodeThread;
     //video overlay config
     int64_t start_time;
-    int64_t start_pts;
+    int64_t video_start_pts; //the start pts of input stream
+    int64_t audio_start_pts;
     int start_frame_num;
 
 };

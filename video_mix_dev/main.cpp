@@ -53,7 +53,7 @@ int main(int argc, char** argv)
     s->inputs[1]->layoutConf.overlayConf = {0.5, 400, 400, 200, 200};
     s->openInputFile(1);
     //
-    s->addInputFile("/home/huheng/Videos/samplemedia/SampleVideo_1280x720_1mb.mp4", 2);
+    s->addInputFile("/home/huheng/Videos/samplemedia/westworld10.mp4", 2);
     //s->addInputFile("a.mp4", 2);
     s->inputs[2]->layoutConf.overlayConf = {0.9, 600, 400, 600, 0};
     s->openInputFile(2);

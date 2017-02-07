@@ -13,6 +13,7 @@ BroadcastingStation::BroadcastingStation():
 {
     canvas = alloc_picture(AV_PIX_FMT_YUV420P, Width, Height);
     outputFrameRate = {1,25};
+    outputSampleRate = {1,44100};
     fill_yuv_image(canvas, 0, Width, Height);
 }
 
@@ -120,7 +121,7 @@ bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
         return false;
     }
     //
-    int64_t need_pts = is->start_pts + av_rescale_q(outputFrameNum - is->start_frame_num, outputFrameRate, is->videoDecoder->time_base);
+    int64_t need_pts = outputFrameNum;
     //keep the last frame
     while(1){
         if(is->videoDecoder->frameQueue.size() == 1){
@@ -136,6 +137,25 @@ bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
         }
     }
     return true;
+}
+
+AVFrame* BroadcastingStation::mixAudioStream()
+{
+    AVFrame* audioFrame = NULL;
+    InputFile* is = NULL;
+    std::shared_ptr<Frame> sharedFrame;
+    inputMutex.lock();
+    for(auto& f : inputs){
+        if(f.second && f.second->audioDecoder && f.second->audioDecoder->frameQueue.size() > 0){
+            f.second->audioDecoder->frameQueue.pop(sharedFrame);
+        }
+    }
+    inputMutex.unlock();
+    if(sharedFrame){
+        audioFrame = av_frame_alloc();
+        av_frame_move_ref(audioFrame, sharedFrame->frame);
+    }
+    return audioFrame;
 }
 
 AVFrame* BroadcastingStation::mixVideoStream()
@@ -182,6 +202,7 @@ AVFrame* BroadcastingStation::mixVideoStream()
     }
     return main;
 }
+
 //benchmark
 int64_t out_time;
 
@@ -209,6 +230,7 @@ void BroadcastingStation::reapFrames()
             av_usleep(5000);
             current_time = av_gettime_relative();
         }
+
         //every 1/framerate time output a AVFrame
         AVFrame* outputFrame = mixVideoStream();
         auto sharedFrame = std::make_shared<Frame>();
@@ -216,6 +238,15 @@ void BroadcastingStation::reapFrames()
         av_frame_free(&outputFrame);
         sharedFrame->frame->pts = outputFrameNum++;
         outputVideoQ.push(sharedFrame);
+
+        //reap audio frame
+        auto sharedAudioFrame = std::make_shared<Frame>();
+        AVFrame* outputAudioFrame = mixAudioStream();
+        if(outputAudioFrame){
+            av_frame_move_ref(sharedAudioFrame->frame, outputAudioFrame);
+            outputAudioQ.push(sharedAudioFrame);
+        }
+
         int64_t now = av_gettime_relative();
         //benchmark
         printf("huheng: output_time %lld\n", now - out_time);
@@ -274,8 +305,19 @@ void BroadcastingStation::streamingOut()
             while(outputVideoQ.size() > 0){
                 sharedFrame = outputVideoQ.front();
                 int64_t pts = av_rescale(sharedFrame->frame->pts, 1000000 * outputFrameRate.num, outputFrameRate.den);
-                if(pts < now - 2000000){
+                if(pts < now - 1000000){
                     outputVideoQ.pop(sharedFrame);
+                } else {
+                    break;
+                }
+            }
+            while(outputAudioQ.size() > 0){
+                sharedFrame = outputAudioQ.front();
+                int64_t pts = av_rescale(sharedFrame->frame->pts, 1000000 * outputFrameRate.num, outputFrameRate.den);
+                if(pts < now - 1000000){
+                    outputVideoQ.pop(sharedFrame);
+                } else {
+                    break;
                 }
             }
             av_usleep(30000);
@@ -306,7 +348,14 @@ void BroadcastingStation::streamingOut()
         //write packet, use codec
         std::shared_ptr<Frame> sharedFrame;
         int ret = 0;
-        while(streaming && outputs.size() > 0 && ret == 0){
+        while(streaming && outputs.size() != 0 && ret == 0){
+            if(outputVideoQ.size() == 0){
+                av_usleep(10000);
+                continue;
+            }
+            //for test
+            outputAudioQ.clear();
+
             outputVideoQ.pop(sharedFrame);
             int got_packet = 0;
             AVPacket pkt = {0};

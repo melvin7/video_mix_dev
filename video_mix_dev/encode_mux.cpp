@@ -110,7 +110,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
         ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
         c->time_base       = ost->st->time_base;
 
-        c->gop_size      = 3; /* emit one intra frame every twelve frames at most */
+        c->gop_size      = 12; /* emit one intra frame every twelve frames at most */
         c->pix_fmt       = STREAM_PIX_FMT;
         if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
             /* just for testing, we also add B-frames */
@@ -183,10 +183,10 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
     }
 
     /* init signal generator */
-    ost->t     = 0;
-    ost->tincr = 2 * M_PI * 110.0 / c->sample_rate;
-    /* increment frequency by 110 Hz per second */
-    ost->tincr2 = 2 * M_PI * 110.0 / c->sample_rate / c->sample_rate;
+//    ost->t     = 0;
+//    ost->tincr = 2 * M_PI * 110.0 / c->sample_rate;
+//    /* increment frequency by 110 Hz per second */
+//    ost->tincr2 = 2 * M_PI * 110.0 / c->sample_rate / c->sample_rate;
 
     if (c->codec->capabilities & AV_CODEC_CAP_VARIABLE_FRAME_SIZE)
         nb_samples = 10000;
@@ -380,9 +380,9 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 //            exit(1);
 //        }
 //    }
-    ost->filter_frame = av_frame_alloc();
-    ost->output_frame = av_frame_alloc();
-    ost->text_frame = av_frame_alloc();
+//    ost->filter_frame = av_frame_alloc();
+//    ost->output_frame = av_frame_alloc();
+//    ost->text_frame = av_frame_alloc();
     /* copy the stream parameters to the muxer */
     ret = avcodec_parameters_from_context(ost->st->codecpar, c);
     if (ret < 0) {

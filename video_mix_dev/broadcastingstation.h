@@ -36,15 +36,18 @@ public:
 
     void reconfig();
     AVFrame* mixVideoStream();
+    AVFrame* mixAudioStream();
     int overlayPicture(AVFrame* main, AVFrame* top, AVFrame* outputFrame, InputFile* file);
     bool getPicture(InputFile* is, std::shared_ptr<Frame>& pic);
 
     //FIXME: should be private, for test
     //output
     AVRational outputFrameRate;
+    AVRational outputSampleRate;
     std::map<int, OutputFile*> outputs;
     //int openOutput(char* filename);
-    SafeQueue<std::shared_ptr<Frame>, 50> outputVideoQ;
+    SafeQueue<std::shared_ptr<Frame>, 100> outputVideoQ;
+    SafeQueue<std::shared_ptr<Frame>, 100> outputAudioQ;
     int outputFrameNum;
     int64_t start_time;
     //input
