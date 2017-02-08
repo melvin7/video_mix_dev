@@ -43,7 +43,7 @@ int open_input_file(InputFile* is)
     avformat_close_input(&is->fmt_ctx);
     is->fmt_ctx = NULL;
     is->start_time = -1;
- //   is->start_pts = -1;
+    is->output_start_pts = -1;
     if ((ret = avformat_open_input(&is->fmt_ctx, is->filename.c_str(), NULL, NULL)) < 0) {
         av_log(NULL, AV_LOG_ERROR, "Cannot open input file: %s\n", is->filename.c_str());
         return ret;
@@ -64,9 +64,24 @@ int open_input_file(InputFile* is)
     return 0;
 }
 
-int consume_packet(Decoder* d, AVPacket* pkt)
+int consume_packet(InputFile* is, AVPacket* pkt)
 {
     int ret;
+    if(!pkt || !is || !is->audioDecoder || !is->videoDecoder){
+        return -1;
+    }
+    Decoder* d = NULL;
+    SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> *frameQueue = NULL;
+    int64_t output_start_pts = 0;
+    int dd = 0;
+    if(pkt->stream_index == is->audioDecoder->stream_index){
+        d = is->audioDecoder;
+        frameQueue = &is->audioFrameQ;
+    } else if(pkt->stream_index == is->videoDecoder->stream_index){
+        d = is->videoDecoder;
+        frameQueue = &is->videoFrameQ;
+
+    }
     ret = avcodec_send_packet(d->avctx, pkt);
     if(ret < 0){
         printf("send packet failed: %d", ret);
@@ -79,15 +94,16 @@ int consume_packet(Decoder* d, AVPacket* pkt)
             //got frame and send to frame queue
             auto sharedFrame = std::make_shared<Frame>();
             frame->pts = av_frame_get_best_effort_timestamp(frame);
-            int64_t framepts = frame->pts;
-            printf("framepts:%lld\n", frame->pts);
+            if(d->start_pts == -1){
+                d->start_pts = frame->pts +dd;
+            }
+
             av_frame_move_ref(sharedFrame->frame, frame);
             int64_t old_delta= sharedFrame->frame->pts - d->start_pts;
-            //rescale 100 times
             int64_t new_delta = av_rescale_q(old_delta, d->time_base, d->dst_time_base);
-            int64_t new_pts = new_delta + d->dst_start_pts;
-            sharedFrame->frame->pts = new_pts;
-            d->frameQueue.push(sharedFrame);
+            sharedFrame->frame->pts = new_delta + d->dst_start_pts;
+            if(frameQueue)
+                frameQueue->push(sharedFrame);
         }else{
             break;
         }
@@ -119,27 +135,32 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
                 AVPacket flush_pkt;
                 flush_pkt.data = NULL;
                 flush_pkt.size = 0;
-                consume_packet(is->videoDecoder, &flush_pkt);
-                consume_packet(is->audioDecoder, &flush_pkt);
+                flush_pkt.stream_index = is->videoDecoder->stream_index;
+                consume_packet(is, &flush_pkt);
+                flush_pkt.stream_index = is->audioDecoder->stream_index;
+                consume_packet(is, &flush_pkt);
                 flushed = true;
             } else if(ret == 0){
                 if(pkt.stream_index == is->videoDecoder->stream_index){
-                    if(is->videoDecoder->start_pts == -1){
-                        is->videoDecoder->start_pts = pkt.pts;
-                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
+                    if(is->videoDecoder->dst_start_pts == -1){
                         is->videoDecoder->dst_time_base = bs->outputFrameRate;
-                    }
-                    consume_packet(is->videoDecoder, &pkt);
-                }else if(pkt.stream_index == is->audioDecoder->stream_index){
-                    if(is->audioDecoder->start_pts == -1){
-                        is->audioDecoder->start_pts = pkt.pts;
-                        is->audioDecoder->dst_start_pts =
-                                av_rescale_q(bs->outputFrameNum,
-                                             bs->outputFrameRate,
-                                             bs->outputSampleRate);
                         is->audioDecoder->dst_time_base = bs->outputSampleRate;
+                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
+                        is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
+                                                                       bs->outputFrameRate,
+                                                                       bs->outputSampleRate);
                     }
-                    consume_packet(is->audioDecoder, &pkt);
+                    consume_packet(is, &pkt);
+                }else if(pkt.stream_index == is->audioDecoder->stream_index){
+                    if(is->audioDecoder->dst_start_pts == -1){
+                        is->videoDecoder->dst_time_base = bs->outputFrameRate;
+                        is->audioDecoder->dst_time_base = bs->outputSampleRate;
+                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
+                        is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
+                                                                       bs->outputFrameRate,
+                                                                       bs->outputSampleRate);
+                    }
+                    consume_packet(is, &pkt);
                 }
             }
             av_packet_unref(&pkt);

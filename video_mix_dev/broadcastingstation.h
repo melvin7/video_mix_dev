@@ -26,7 +26,6 @@ public:
     void deleteOutputFile(int index);
     void startStreaming();
     void stopStreaming();
-    void overlayConfigRequest();
     void setOverlayConfig(OverlayConfig& c, int id);
 
     //thread

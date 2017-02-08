@@ -117,23 +117,23 @@ int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* ou
 //time relevant
 bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
 {
-    if(!is || !is->videoDecoder || is->videoDecoder->frameQueue.size() <= 0){
+    if(!is || is->videoFrameQ.size() <= 0){
         return false;
     }
     //
     int64_t need_pts = outputFrameNum;
     //keep the last frame
     while(1){
-        if(is->videoDecoder->frameQueue.size() == 1){
-            pic = is->videoDecoder->frameQueue.front();
+        if(is->videoFrameQ.size() == 1){
+            pic = is->videoFrameQ.front();
             break;
         }
         std::shared_ptr<Frame> sharedFrame;
-        if(is->videoDecoder->frameQueue.front()->frame->pts >= need_pts){
-            pic = is->videoDecoder->frameQueue.front();
+        if(is->videoFrameQ.front()->frame->pts >= need_pts){
+            pic = is->videoFrameQ.front();
             break;
         }else{
-            is->videoDecoder->frameQueue.pop(sharedFrame);
+            is->videoFrameQ.pop(sharedFrame);
         }
     }
     return true;
@@ -147,10 +147,10 @@ AVFrame* BroadcastingStation::mixAudioStream()
     std::shared_ptr<Frame> sharedFrame;
     inputMutex.lock();
     for(auto it = inputs.begin(); it != inputs.end(); ++it){
-        if(it->second && it->second->audioDecoder){
-            while(it->second->audioDecoder->frameQueue.size() > 0){
-                if(it->second->audioDecoder->frameQueue.front()->frame->pts <= need_pts){
-                    it->second->audioDecoder->frameQueue.pop(sharedFrame);
+        if(it->second){
+            while(it->second->audioFrameQ.size() > 0){
+                if(it->second->audioFrameQ.front()->frame->pts <= need_pts){
+                    it->second->audioFrameQ.pop(sharedFrame);
                     if(it == inputs.begin())
                         outputAudioQ.push(sharedFrame);
                 }else{
@@ -242,7 +242,7 @@ void BroadcastingStation::reapFrames()
         }
         //
 //        int64_t current_time = av_gettime_relative();
-//        int64_t output_time = (int64_t)outputFrameNum * 500000 * outputFrameRate.num / outputFrameRate.den;
+//        int64_t output_time = (int64_t)outputFrameNum * 1000000 * outputFrameRate.num / outputFrameRate.den;
 //        while(current_time - start_time < output_time){
 //            av_usleep(5000);
 //            current_time = av_gettime_relative();

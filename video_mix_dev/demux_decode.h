@@ -27,7 +27,7 @@ typedef struct Decoder {
     AVRational dst_time_base;
 
     AVRational time_base;
-    SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> frameQueue;
+    //SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> frameQueue;
     Decoder():avctx(NULL),stream_index(-1),
         start_pts(-1),
         abort_request(false),time_base({1,1000}){}
@@ -36,6 +36,7 @@ typedef struct Decoder {
         stream_index = index;
         time_base = tb;
         start_pts = -1;
+        dst_start_pts = -1;
     }
     ~Decoder(){
         avcodec_close(avctx);
@@ -56,6 +57,7 @@ public:
     InputFile(char* fname):filename(fname), fmt_ctx(NULL),
         videoDecoder(NULL), audioDecoder(NULL),
         video_start_pts(-1), audio_start_pts(-1),
+        output_start_pts(-1),
         valid(false), video_time_base({1,1000}),
         abortRequest(false),decodeThread(NULL){}
     ~InputFile(){
@@ -67,11 +69,11 @@ public:
     //video config
     Decoder* videoDecoder;
     Decoder* audioDecoder;
-
+    SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> videoFrameQ;
+    SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> audioFrameQ;
     LayoutConfig layoutConf;
     AVRational video_time_base;
     FrameArgs fa;
-
 
     //input stream is valid, false: not init, eof or error
     bool valid;
@@ -81,11 +83,10 @@ public:
     int64_t start_time;
     int64_t video_start_pts; //the start pts of input stream
     int64_t audio_start_pts;
+    int64_t output_start_pts;
     int start_frame_num;
 
 };
-
-
 
 /*
     open input file
