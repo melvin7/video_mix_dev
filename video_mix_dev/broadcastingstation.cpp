@@ -143,14 +143,26 @@ AVFrame* BroadcastingStation::mixAudioStream()
 {
     AVFrame* audioFrame = NULL;
     InputFile* is = NULL;
+    int64_t need_pts = av_rescale_q(outputFrameNum, outputFrameRate, outputSampleRate);
     std::shared_ptr<Frame> sharedFrame;
     inputMutex.lock();
-    for(auto& f : inputs){
-        if(f.second && f.second->audioDecoder && f.second->audioDecoder->frameQueue.size() > 0){
-            f.second->audioDecoder->frameQueue.pop(sharedFrame);
+    for(auto it = inputs.begin(); it != inputs.end(); ++it){
+        if(it->second && it->second->audioDecoder){
+            while(it->second->audioDecoder->frameQueue.size() > 0){
+                if(it->second->audioDecoder->frameQueue.front()->frame->pts <= need_pts){
+                    it->second->audioDecoder->frameQueue.pop(sharedFrame);
+                    if(it == inputs.begin())
+                        outputAudioQ.push(sharedFrame);
+                }else{
+                    break;
+                }
+            }
         }
+//        if(f.second && f.second->audioDecoder)
+//            f.second->audioDecoder->frameQueue.clear();
     }
     inputMutex.unlock();
+    return NULL;
     if(sharedFrame){
         audioFrame = av_frame_alloc();
         av_frame_move_ref(audioFrame, sharedFrame->frame);
@@ -203,6 +215,11 @@ AVFrame* BroadcastingStation::mixVideoStream()
     return main;
 }
 
+//void BroadcastingStation::reapAudioFrames()
+//{
+
+//}
+
 //benchmark
 int64_t out_time;
 
@@ -224,12 +241,12 @@ void BroadcastingStation::reapFrames()
             reconfigReq = false;
         }
         //
-        int64_t current_time = av_gettime_relative();
-        int64_t output_time = (int64_t)outputFrameNum * 2000000 * outputFrameRate.num / outputFrameRate.den;
-        while(current_time - start_time < output_time){
-            av_usleep(5000);
-            current_time = av_gettime_relative();
-        }
+//        int64_t current_time = av_gettime_relative();
+//        int64_t output_time = (int64_t)outputFrameNum * 500000 * outputFrameRate.num / outputFrameRate.den;
+//        while(current_time - start_time < output_time){
+//            av_usleep(5000);
+//            current_time = av_gettime_relative();
+//        }
 
         //every 1/framerate time output a AVFrame
         AVFrame* outputFrame = mixVideoStream();
@@ -240,12 +257,12 @@ void BroadcastingStation::reapFrames()
         outputVideoQ.push(sharedFrame);
 
         //reap audio frame
-        auto sharedAudioFrame = std::make_shared<Frame>();
+        //auto sharedAudioFrame = std::make_shared<Frame>();
         AVFrame* outputAudioFrame = mixAudioStream();
-        if(outputAudioFrame){
-            av_frame_move_ref(sharedAudioFrame->frame, outputAudioFrame);
-            outputAudioQ.push(sharedAudioFrame);
-        }
+//        if(outputAudioFrame){
+//            av_frame_move_ref(sharedAudioFrame->frame, outputAudioFrame);
+//            outputAudioQ.push(sharedAudioFrame);
+//        }
 
         int64_t now = av_gettime_relative();
         //benchmark
@@ -326,7 +343,8 @@ void BroadcastingStation::streamingOut()
         //streaming encode and write
         //open output file
         //select a encoder
-        AVCodecContext* encoder_ctx;
+        AVCodecContext* video_encoder_ctx;
+        AVCodecContext* audio_encoder_ctx;
         for(auto& of : outputs){
             //TODO: read output config
             if(open_output_file(of.second) < 0){
@@ -341,7 +359,8 @@ void BroadcastingStation::streamingOut()
                 continue;
             }
             streaming = true;
-            encoder_ctx = of.second->video_st.enc;
+            video_encoder_ctx = of.second->video_st.enc;
+            audio_encoder_ctx = of.second->audio_st.enc;
             of.second->valid = true;
         }
         //printf("start streaming result: %d\n", flags);
@@ -349,28 +368,70 @@ void BroadcastingStation::streamingOut()
         std::shared_ptr<Frame> sharedFrame;
         int ret = 0;
         while(streaming && outputs.size() != 0 && ret == 0){
-            if(outputVideoQ.size() == 0){
+            if(outputVideoQ.size() == 0 || outputAudioQ.size() == 0){
                 av_usleep(10000);
                 continue;
             }
             //for test
-            outputAudioQ.clear();
+//            outputVideoQ.clear();
+//            outputAudioQ.pop(sharedFrame);
+//            int got_packet = 0;
+//            AVPacket pkt = {0};
+//            av_init_packet(&pkt);
+//            ret = avcodec_encode_audio2(audio_encoder_ctx, &pkt, sharedFrame->frame, &got_packet);
+//            if(ret < 0) {
+//                fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+//                continue;
+//            }
+//            if(got_packet) {
+//                for(auto& of : outputs){
+//                    if(of.second && of.second->valid)
+//                        ret = write_frame(of.second->fmt_ctx, &audio_encoder_ctx->time_base, &of.second->audio_st, &pkt);
+//                }
+//            }
+//            continue;
 
-            outputVideoQ.pop(sharedFrame);
-            int got_packet = 0;
-            AVPacket pkt = {0};
-            av_init_packet(&pkt);
-            ret = avcodec_encode_video2(encoder_ctx, &pkt, sharedFrame->frame, &got_packet);
-            if(ret < 0) {
-                fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
-                continue;
-            }
-            if(got_packet) {
-                for(auto& of : outputs){
-                    if(of.second && of.second->valid)
-                        ret = write_frame(of.second->fmt_ctx, &encoder_ctx->time_base, &of.second->video_st, &pkt);
+
+
+            if(av_compare_ts(outputVideoQ.front()->frame->pts,
+                             outputFrameRate,
+                             outputAudioQ.front()->frame->pts,
+                             outputSampleRate) <= 0){
+                //consume video frame
+                outputVideoQ.pop(sharedFrame);
+                int got_packet = 0;
+                AVPacket pkt = {0};
+                av_init_packet(&pkt);
+                ret = avcodec_encode_video2(video_encoder_ctx, &pkt, sharedFrame->frame, &got_packet);
+                if(ret < 0) {
+                    fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+                    continue;
                 }
-            } 
+                if(got_packet) {
+                    for(auto& of : outputs){
+                        if(of.second && of.second->valid)
+                            ret = write_frame(of.second->fmt_ctx, &video_encoder_ctx->time_base, &of.second->video_st, &pkt);
+                    }
+                }
+            }else{
+                outputAudioQ.pop(sharedFrame);
+                int got_packet = 0;
+                AVPacket pkt = {0};
+                av_init_packet(&pkt);
+                ret = avcodec_encode_audio2(audio_encoder_ctx, &pkt, sharedFrame->frame, &got_packet);
+                if(ret < 0) {
+                    fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+                    continue;
+                }
+                if(got_packet) {
+                    for(auto& of : outputs){
+                        if(of.second && of.second->valid)
+                            ret = write_frame(of.second->fmt_ctx, &audio_encoder_ctx->time_base, &of.second->audio_st, &pkt);
+                    }
+                }
+            }
+
+
         }
     }
 }

@@ -19,7 +19,6 @@ public:
     };
 
     //interface for event request
-    //there is no mutex in these interfaces, so call them in same thread;
     void addInputFile(char* filename, int id);
     void openInputFile(int id);
     void deleteInputFile(int id);

@@ -14,7 +14,7 @@ extern "C"{
 #include "safequeue.h"
 #include "util.h"
 
-#define FrameQueueSize 200
+#define FrameQueueSize 100
 
 //a video decoder decode the video stream in fmt
 typedef struct Decoder {

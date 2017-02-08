@@ -37,8 +37,8 @@ int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, OutputStr
     /* Write the compressed frame to the media file. */
     log_packet(fmt_ctx, pkt);
 
-    //return av_interleaved_write_frame(fmt_ctx, pkt);
-    return av_write_frame(fmt_ctx, pkt);
+    return av_interleaved_write_frame(fmt_ctx, pkt);
+    //return av_write_frame(fmt_ctx, pkt);
 }
 
 /* Add an output stream. */

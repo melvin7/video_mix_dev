@@ -68,11 +68,11 @@ int main(int argc, char** argv)
         //config
         //if(tt>1000)
           //  continue;
-        OverlayConfig c = {(tt%1000)/1000.0, 100 + tt%500,100+tt%300,tt%1000,tt%700};
-        s->setOverlayConfig(c, 1);
-        OverlayConfig c2 = {0.9, 600,400, 600, tt%600};
-        s->setOverlayConfig(c2, 2);
-        tt += 100;
+//        OverlayConfig c = {(tt%1000)/1000.0, 100 + tt%500,100+tt%300,tt%1000,tt%700};
+//        s->setOverlayConfig(c, 1);
+//        OverlayConfig c2 = {0.9, 600,400, 600, tt%600};
+//        s->setOverlayConfig(c2, 2);
+//        tt += 100;
     }
 
     //thread join
