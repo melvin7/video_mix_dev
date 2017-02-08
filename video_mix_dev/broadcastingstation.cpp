@@ -225,7 +225,7 @@ void BroadcastingStation::reapFrames()
         }
         //
         int64_t current_time = av_gettime_relative();
-        int64_t output_time = (int64_t)outputFrameNum * 1000000 * outputFrameRate.num / outputFrameRate.den;
+        int64_t output_time = (int64_t)outputFrameNum * 2000000 * outputFrameRate.num / outputFrameRate.den;
         while(current_time - start_time < output_time){
             av_usleep(5000);
             current_time = av_gettime_relative();
