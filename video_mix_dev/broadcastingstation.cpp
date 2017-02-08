@@ -114,6 +114,10 @@ int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* ou
     return 0;
 }
 
+int a1 =0;
+int a2 = 0;
+int a3 =0;
+
 //time relevant
 bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
 {
@@ -121,21 +125,33 @@ bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
         return false;
     }
     //
-    int64_t need_pts = outputFrameNum;
+    int64_t need_pts = outputFrameNum*960;
     //keep the last frame
+    std::shared_ptr<Frame> sharedFrame;
     while(1){
         if(is->videoFrameQ.size() == 1){
             pic = is->videoFrameQ.front();
+            a1++;
             break;
         }
-        std::shared_ptr<Frame> sharedFrame;
+
         if(is->videoFrameQ.front()->frame->pts >= need_pts){
-            pic = is->videoFrameQ.front();
+            if(!sharedFrame){
+                pic = is->videoFrameQ.front();
+                a2++;
+            }else{
+                int64_t delta1 = is->videoFrameQ.front()->frame->pts - need_pts;
+                int64_t delta2 = need_pts - sharedFrame->frame->pts;
+                pic = (delta1 <= delta2 ? is->videoFrameQ.front() : pic);
+                a3++;
+            }
             break;
         }else{
             is->videoFrameQ.pop(sharedFrame);
+            pic = sharedFrame;
         }
     }
+    printf("a1: %d, a2: %d, a3: %d\n", a1, a2, a3);
     return true;
 }
 
@@ -242,7 +258,7 @@ void BroadcastingStation::reapFrames()
         }
         //
 //        int64_t current_time = av_gettime_relative();
-//        int64_t output_time = (int64_t)outputFrameNum * 1000000 * outputFrameRate.num / outputFrameRate.den;
+//        int64_t output_time = (int64_t)outputFrameNum * 4000000 * outputFrameRate.num / outputFrameRate.den;
 //        while(current_time - start_time < output_time){
 //            av_usleep(5000);
 //            current_time = av_gettime_relative();

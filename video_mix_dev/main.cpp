@@ -53,8 +53,9 @@ int main(int argc, char** argv)
 //    s->inputs[1]->layoutConf.overlayConf = {0.5, 400, 400, 200, 200};
 //    s->openInputFile(1);
 //    //
-    s->addInputFile("/home/huheng/Videos/samplemedia/westworld10.mp4", 2);
-    //s->addInputFile("a.mp4", 2);
+    //s->addInputFile("/home/huheng/Videos/samplemedia/westworld10.mp4", 2);
+    //s->addInputFile("too23.mp4", 2);
+    s->addInputFile("/home/huheng/video/westworld10.mp4", 2);
     s->inputs[2]->layoutConf.overlayConf = {0.9, 600, 400, 600, 0};
     s->openInputFile(2);
 
@@ -70,9 +71,9 @@ int main(int argc, char** argv)
           //  continue;
 //        OverlayConfig c = {(tt%1000)/1000.0, 100 + tt%500,100+tt%300,tt%1000,tt%700};
 //        s->setOverlayConfig(c, 1);
-        OverlayConfig c2 = {0.9, 600,400, 600, tt%600};
-        s->setOverlayConfig(c2, 2);
-        tt += 100;
+//        OverlayConfig c2 = {0.9, 600,400, 600, tt%600};
+//        s->setOverlayConfig(c2, 2);
+//        tt += 100;
     }
 
     //thread join

@@ -143,9 +143,9 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
             } else if(ret == 0){
                 if(pkt.stream_index == is->videoDecoder->stream_index){
                     if(is->videoDecoder->dst_start_pts == -1){
-                        is->videoDecoder->dst_time_base = bs->outputFrameRate;
+                        is->videoDecoder->dst_time_base = {1,24000};
                         is->audioDecoder->dst_time_base = bs->outputSampleRate;
-                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
+                        is->videoDecoder->dst_start_pts = bs->outputFrameNum * 960;
                         is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
                                                                        bs->outputFrameRate,
                                                                        bs->outputSampleRate);
@@ -153,9 +153,9 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
                     consume_packet(is, &pkt);
                 }else if(pkt.stream_index == is->audioDecoder->stream_index){
                     if(is->audioDecoder->dst_start_pts == -1){
-                        is->videoDecoder->dst_time_base = bs->outputFrameRate;
+                        is->videoDecoder->dst_time_base = {1,24000};
                         is->audioDecoder->dst_time_base = bs->outputSampleRate;
-                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
+                        is->videoDecoder->dst_start_pts = bs->outputFrameNum * 960;
                         is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
                                                                        bs->outputFrameRate,
                                                                        bs->outputSampleRate);
