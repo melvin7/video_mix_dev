@@ -72,7 +72,6 @@ int consume_packet(InputFile* is, AVPacket* pkt)
     }
     Decoder* d = NULL;
     SafeQueue<std::shared_ptr<Frame>, FrameQueueSize> *frameQueue = NULL;
-    int64_t output_start_pts = 0;
     int dd = 0;
     if(pkt->stream_index == is->audioDecoder->stream_index){
         d = is->audioDecoder;
@@ -93,21 +92,14 @@ int consume_packet(InputFile* is, AVPacket* pkt)
         ret = avcodec_receive_frame(d->avctx, frame);
         if(ret == 0){
             //got frame and send to frame queue
-            auto sharedFrame = std::make_shared<Frame>();
             frame->pts = av_frame_get_best_effort_timestamp(frame);
-           // printf("huheng index: %d, old frame pts: %lld\n", dd, frame->pts);
-
-//            if(d->start_pts == -1){
-//                d->start_pts = frame->pts;
-//                printf("huheng index: %d, start pts: %lld\n", dd, d->start_pts);
-//            }
-
+            auto sharedFrame = std::make_shared<Frame>();
             av_frame_move_ref(sharedFrame->frame, frame);
             int64_t old_delta= sharedFrame->frame->pts - d->start_pts;
             int64_t new_delta = av_rescale_q(old_delta, d->time_base, d->dst_time_base);
             sharedFrame->frame->pts = new_delta + d->dst_start_pts;
-            printf("huheng index: %d, old_delta: %lld, new_delta: %lld\n", dd, old_delta, new_delta);
-            printf("huheng index: %d, new frame pts: %lld\n", dd, sharedFrame->frame->pts);
+            //printf("huheng index: %d, old_delta: %lld, new_delta: %lld\n", dd, old_delta, new_delta);
+            //printf("huheng index: %d, new frame pts: %lld\n", dd, sharedFrame->frame->pts);
             if(frameQueue)
                 frameQueue->push(sharedFrame);
         }else{
@@ -162,17 +154,10 @@ void decode_thread(InputFile* is, BroadcastingStation* bs)
                 consume_packet(is, &flush_pkt);
                 flushed = true;
             } else if(ret == 0){
-                if(pkt.stream_index == is->videoDecoder->stream_index){
-                    if(is->videoDecoder->dst_start_pts == -1){
-                        pts_sync(is, bs);
-                    }
-                    consume_packet(is, &pkt);
-                }else if(pkt.stream_index == is->audioDecoder->stream_index){
-                    if(is->audioDecoder->dst_start_pts == -1){
-                        pts_sync(is, bs);
-                    }
-                    consume_packet(is, &pkt);
-                }
+                //set start pts, sync audio and video
+                if(is->videoDecoder->dst_start_pts == -1)
+                    pts_sync(is, bs);
+                consume_packet(is, &pkt);
             }
             av_packet_unref(&pkt);
         }
