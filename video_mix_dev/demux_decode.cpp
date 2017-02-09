@@ -77,6 +77,7 @@ int consume_packet(InputFile* is, AVPacket* pkt)
     if(pkt->stream_index == is->audioDecoder->stream_index){
         d = is->audioDecoder;
         frameQueue = &is->audioFrameQ;
+        dd = 1;
     } else if(pkt->stream_index == is->videoDecoder->stream_index){
         d = is->videoDecoder;
         frameQueue = &is->videoFrameQ;
@@ -94,14 +95,19 @@ int consume_packet(InputFile* is, AVPacket* pkt)
             //got frame and send to frame queue
             auto sharedFrame = std::make_shared<Frame>();
             frame->pts = av_frame_get_best_effort_timestamp(frame);
+           // printf("huheng index: %d, old frame pts: %lld\n", dd, frame->pts);
+
             if(d->start_pts == -1){
-                d->start_pts = frame->pts +dd;
+                d->start_pts = frame->pts;
+                printf("huheng index: %d, start pts: %lld\n", dd, d->start_pts);
             }
 
             av_frame_move_ref(sharedFrame->frame, frame);
             int64_t old_delta= sharedFrame->frame->pts - d->start_pts;
             int64_t new_delta = av_rescale_q(old_delta, d->time_base, d->dst_time_base);
             sharedFrame->frame->pts = new_delta + d->dst_start_pts;
+           // printf("huheng index: %d, old_delta: %lld, new_delta: %lld\n", dd, old_delta, new_delta);
+           // printf("huheng index: %d, new frame pts: %lld\n", dd, sharedFrame->frame->pts);
             if(frameQueue)
                 frameQueue->push(sharedFrame);
         }else{
@@ -143,9 +149,9 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
             } else if(ret == 0){
                 if(pkt.stream_index == is->videoDecoder->stream_index){
                     if(is->videoDecoder->dst_start_pts == -1){
-                        is->videoDecoder->dst_time_base = {1,24000};
+                        is->videoDecoder->dst_time_base = bs->outputFrameRate;
                         is->audioDecoder->dst_time_base = bs->outputSampleRate;
-                        is->videoDecoder->dst_start_pts = bs->outputFrameNum * 960;
+                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
                         is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
                                                                        bs->outputFrameRate,
                                                                        bs->outputSampleRate);
@@ -153,9 +159,9 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
                     consume_packet(is, &pkt);
                 }else if(pkt.stream_index == is->audioDecoder->stream_index){
                     if(is->audioDecoder->dst_start_pts == -1){
-                        is->videoDecoder->dst_time_base = {1,24000};
+                        is->videoDecoder->dst_time_base = bs->outputFrameRate;
                         is->audioDecoder->dst_time_base = bs->outputSampleRate;
-                        is->videoDecoder->dst_start_pts = bs->outputFrameNum * 960;
+                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
                         is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
                                                                        bs->outputFrameRate,
                                                                        bs->outputSampleRate);

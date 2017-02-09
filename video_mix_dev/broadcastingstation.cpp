@@ -114,10 +114,6 @@ int BroadcastingStation::overlayPicture(AVFrame* main, AVFrame* top, AVFrame* ou
     return 0;
 }
 
-int a1 =0;
-int a2 = 0;
-int a3 =0;
-
 //time relevant
 bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
 {
@@ -125,25 +121,27 @@ bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
         return false;
     }
     //
-    int64_t need_pts = outputFrameNum*960;
+    int64_t need_pts = outputFrameNum;
     //keep the last frame
     std::shared_ptr<Frame> sharedFrame;
     while(1){
         if(is->videoFrameQ.size() == 1){
             pic = is->videoFrameQ.front();
-            a1++;
             break;
         }
 
         if(is->videoFrameQ.front()->frame->pts >= need_pts){
             if(!sharedFrame){
                 pic = is->videoFrameQ.front();
-                a2++;
             }else{
                 int64_t delta1 = is->videoFrameQ.front()->frame->pts - need_pts;
                 int64_t delta2 = need_pts - sharedFrame->frame->pts;
-                pic = (delta1 <= delta2 ? is->videoFrameQ.front() : pic);
-                a3++;
+                if(delta1 < delta2){
+                    pic = is->videoFrameQ.front();
+                }else {
+                    is->videoFrameQ.push_front(sharedFrame);
+                    pic = sharedFrame;
+                }
             }
             break;
         }else{
@@ -151,7 +149,6 @@ bool BroadcastingStation::getPicture(InputFile* is, std::shared_ptr<Frame>& pic)
             pic = sharedFrame;
         }
     }
-    printf("a1: %d, a2: %d, a3: %d\n", a1, a2, a3);
     return true;
 }
 
@@ -203,6 +200,7 @@ AVFrame* BroadcastingStation::mixVideoStream()
          [](InputFile* a, InputFile*b){
                 return a && b && a->layoutConf.orderNum < b->layoutConf.orderNum;
     });
+    AVFrame* overlayedFrame = NULL;
     for(auto file : inputSequence) {
         //get a frame from queue
         //push and pop
@@ -213,11 +211,14 @@ AVFrame* BroadcastingStation::mixVideoStream()
         //overlayPicture should not failed, but we will take care of it
         getflags = true;
         //FIXME pts issue
-        main->pts = sharedFrame->frame->pts = outputFrameNum;
+        overlayedFrame = av_frame_clone(sharedFrame->frame);
+        main->pts = overlayedFrame->pts = outputFrameNum;
         //av_frame_copy_props(main, sharedFrame->frame);
-        overlayPicture(main, sharedFrame->frame, outputFrame, file);
+        overlayPicture(main, overlayedFrame, outputFrame, file);
         av_frame_unref(main);
         av_frame_move_ref(main, outputFrame);
+        av_frame_unref(overlayedFrame);
+        av_frame_free(&overlayedFrame);
     }
     inputMutex.unlock();
     av_frame_free(&outputFrame);

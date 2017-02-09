@@ -1,7 +1,7 @@
 #ifndef SAFEQUEUE_H
 #define SAFEQUEUE_H
 
-#include <queue>
+#include <deque>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -15,13 +15,14 @@ public:
     SafeQueue():abortRequest(0){}
     bool pop(T& data);
     bool push(const T& data);
+    bool push_front(const T& data);
     void clear();
     void abort();
     unsigned int size();
     T& front();
 private:
     std::mutex qMutex;
-    std::queue<T> q;
+    std::deque<T> q;
     std::condition_variable condNotFull;
     std::condition_variable condNotEmpty;
 int abortRequest;
@@ -40,7 +41,25 @@ bool SafeQueue<T, MAXSIZE>::push(const T& data)
     }
     if(abortRequest)
         return false;
-    q.push(data);
+    q.push_back(data);
+    condNotEmpty.notify_one();
+    return true;
+}
+
+template<typename T, int MAXSIZE>
+bool SafeQueue<T, MAXSIZE>::push_front(const T& data)
+{
+    std::unique_lock<std::mutex> lock(qMutex);
+    if(abortRequest == 1){
+        return false;
+    }
+    /*if queue was full, wait */
+    if(q.size() >= MAXSIZE){
+        condNotFull.wait(lock, [this]{return q.size() < MAXSIZE || abortRequest;});
+    }
+    if(abortRequest)
+        return false;
+    q.push_front(data);
     condNotEmpty.notify_one();
     return true;
 }
@@ -59,7 +78,7 @@ bool SafeQueue<T, MAXSIZE>::pop(T& data)
     if(abortRequest)
         return false;
     data = q.front();
-    q.pop();
+    q.pop_front();
     condNotFull.notify_one();
     return true;
 }
@@ -68,7 +87,7 @@ template<typename T, int MAXSIZE>
 void SafeQueue<T, MAXSIZE>::clear()
 {
     std::unique_lock<std::mutex> lock(qMutex);
-    std::queue<T> t;
+    std::deque<T> t;
     q.swap(t);
 }
 

@@ -194,7 +194,7 @@ int OverlayBox::pop_frame(AVFrame* frame)
     while (1) {
         ret = av_buffersink_get_frame(buffersink_ctx, frame);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF){
-            printf("huheng %s!\n",ret == AVERROR(EAGAIN) ? "eagain":"error");
+            printf("huheng get frame from filter failed: %s!\n",ret == AVERROR(EAGAIN) ? "eagain":"error");
             return ret;
         }
         if (ret < 0){
