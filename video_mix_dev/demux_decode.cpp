@@ -97,17 +97,17 @@ int consume_packet(InputFile* is, AVPacket* pkt)
             frame->pts = av_frame_get_best_effort_timestamp(frame);
            // printf("huheng index: %d, old frame pts: %lld\n", dd, frame->pts);
 
-            if(d->start_pts == -1){
-                d->start_pts = frame->pts;
-                printf("huheng index: %d, start pts: %lld\n", dd, d->start_pts);
-            }
+//            if(d->start_pts == -1){
+//                d->start_pts = frame->pts;
+//                printf("huheng index: %d, start pts: %lld\n", dd, d->start_pts);
+//            }
 
             av_frame_move_ref(sharedFrame->frame, frame);
             int64_t old_delta= sharedFrame->frame->pts - d->start_pts;
             int64_t new_delta = av_rescale_q(old_delta, d->time_base, d->dst_time_base);
             sharedFrame->frame->pts = new_delta + d->dst_start_pts;
-           // printf("huheng index: %d, old_delta: %lld, new_delta: %lld\n", dd, old_delta, new_delta);
-           // printf("huheng index: %d, new frame pts: %lld\n", dd, sharedFrame->frame->pts);
+            printf("huheng index: %d, old_delta: %lld, new_delta: %lld\n", dd, old_delta, new_delta);
+            printf("huheng index: %d, new frame pts: %lld\n", dd, sharedFrame->frame->pts);
             if(frameQueue)
                 frameQueue->push(sharedFrame);
         }else{
@@ -118,7 +118,22 @@ int consume_packet(InputFile* is, AVPacket* pkt)
     return 0;
 }
 
-void decode_thread(InputFile* is, BroadcastingStation* bs){
+void pts_sync(InputFile* is, BroadcastingStation* bs)
+{
+    if(!is || !is->videoDecoder || !is->audioDecoder || !bs)
+        return;
+    is->videoDecoder->dst_time_base = bs->outputFrameRate;
+    is->audioDecoder->dst_time_base = bs->outputSampleRate;
+    is->videoDecoder->dst_start_pts = bs->outputFrameNum;
+    is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
+                                                   bs->outputFrameRate,
+                                                   bs->outputSampleRate);
+    is->videoDecoder->start_pts = av_rescale_q(is->fmt_ctx->start_time, AV_TIME_BASE_Q, is->videoDecoder->time_base);
+    is->audioDecoder->start_pts = av_rescale_q(is->fmt_ctx->start_time, AV_TIME_BASE_Q, is->audioDecoder->time_base);
+}
+
+void decode_thread(InputFile* is, BroadcastingStation* bs)
+{
     while(!is->abortRequest){
         //init a decoder
         if(!is->valid){
@@ -149,22 +164,12 @@ void decode_thread(InputFile* is, BroadcastingStation* bs){
             } else if(ret == 0){
                 if(pkt.stream_index == is->videoDecoder->stream_index){
                     if(is->videoDecoder->dst_start_pts == -1){
-                        is->videoDecoder->dst_time_base = bs->outputFrameRate;
-                        is->audioDecoder->dst_time_base = bs->outputSampleRate;
-                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
-                        is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
-                                                                       bs->outputFrameRate,
-                                                                       bs->outputSampleRate);
+                        pts_sync(is, bs);
                     }
                     consume_packet(is, &pkt);
                 }else if(pkt.stream_index == is->audioDecoder->stream_index){
                     if(is->audioDecoder->dst_start_pts == -1){
-                        is->videoDecoder->dst_time_base = bs->outputFrameRate;
-                        is->audioDecoder->dst_time_base = bs->outputSampleRate;
-                        is->videoDecoder->dst_start_pts = bs->outputFrameNum;
-                        is->audioDecoder->dst_start_pts = av_rescale_q(bs->outputFrameNum,
-                                                                       bs->outputFrameRate,
-                                                                       bs->outputSampleRate);
+                        pts_sync(is, bs);
                     }
                     consume_packet(is, &pkt);
                 }
